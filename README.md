@@ -123,8 +123,9 @@ Tables and columns are snake_case (including the Identity tables)
 
 ## Deployment
 
-Push to `main` runs tests, publishes `ghcr.io/<owner>/deboetapi-api`, then SSHes to the VPS,
-pulls, restarts, and gates the job on `/health/ready` responding.
+Push to `master` — or a manual **Run workflow** — runs tests, publishes
+`ghcr.io/<owner>/deboetapi-api`, then SSHes to the VPS, pulls, restarts, and gates the job on
+`/health/ready` responding. Pull requests run the tests only.
 
 **VPS setup** — install Docker, create an app directory, and place `compose.prod.yaml`, the
 `caddy/` directory, and a `.env` filled in from `.env.example`.
