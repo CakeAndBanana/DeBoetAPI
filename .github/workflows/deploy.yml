@@ -22,14 +22,11 @@ jobs:
     # Self-hosted runner on the VPS. Safe here because the repository is private, so only
     # people with access can trigger a workflow that executes on the server.
     runs-on: self-hosted
-    env:
-      DOTNET_INSTALL_DIR: ${{ runner.tool_cache }}/dotnet
     steps:
       - uses: actions/checkout@v5
-
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
+  
+      - name: Check the SDK the runner can see
+        run: dotnet --version
 
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release
