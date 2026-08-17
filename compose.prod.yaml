@@ -1,0 +1,88 @@
+name: deboetapi
+
+# Deployed to the VPS alongside a .env holding POSTGRES_PASSWORD, JWT_SIGNING_KEY,
+# CORS_ORIGIN and IMAGE_TAG. Nothing in here carries a usable default on purpose —
+# a missing secret should fail loudly rather than boot with a dev value.
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    # No `ports:` — the database is reachable only from the compose network.
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  api:
+    image: ${IMAGE:?set IMAGE}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    pull_policy: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: >-
+        Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Database__MigrateOnStartup: "true"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?set JWT_SIGNING_KEY}
+      Jwt__Issuer: ${JWT_ISSUER:-deboetapi-api}
+      Jwt__Audience: ${JWT_AUDIENCE:-deboetapi-clients}
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN:?set CORS_ORIGIN}
+      # Caddy terminates TLS, so the app must read the original scheme and client IP from
+      # the forwarded headers rather than from the proxied connection.
+      Proxy__TrustForwardedHeaders: "true"
+      Admin__Password: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+    ports:
+      # Bound to loopback: reachable by the deploy health poll on the host, never from the
+      # internet. Public traffic arrives through Caddy over the compose network.
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # A named volume, not a bind mount: Docker creates a bind-mounted host directory owned
+      # by root, and this container runs as uid 1654, so it could not write there. To put the
+      # files on the host instead, pre-create the directory and hand it over first:
+      #   mkdir -p ./logs && sudo chown 1654:1654 ./logs
+      # then swap this line for `- ./logs:/app/logs`.
+      - api-logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Losing this volume means re-issuing on restart, which will
+      # eventually hit Let's Encrypt rate limits — keep it.
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  api-logs:
+  caddy-data:
+  caddy-config:

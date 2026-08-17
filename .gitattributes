@@ -1,0 +1,9 @@
+* text=auto
+
+# These are read by Linux containers (bind-mounted or COPY'd). CRLF would leak in from a
+# Windows checkout and break parsing.
+Caddyfile text eol=lf
+Dockerfile text eol=lf
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

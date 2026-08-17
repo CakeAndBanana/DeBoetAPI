@@ -1,0 +1,26 @@
+{
+	# Let's Encrypt uses this for expiry warnings. Certificates are obtained and renewed
+	# automatically — there is nothing to run on a schedule.
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Health probes are for the deploy pipeline, which reaches the API directly on the host.
+	# No reason to expose readiness (and its dependency detail) to the internet.
+	handle /health* {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy api:8080
+	}
+}

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DeBoetAPI/DeBoetAPI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DeBoetAPI.Tests/DeBoetAPI.Tests.csproj" />
+  </Folder>
+</Solution>

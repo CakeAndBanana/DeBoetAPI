@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+.git/
+.github/
+**/*.user
+**/appsettings.*.local.json
+.env
+logs/
+compose*.yaml
+README.md
