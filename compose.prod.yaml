@@ -46,6 +46,9 @@ services:
       # the forwarded headers rather than from the proxied connection.
       Proxy__TrustForwardedHeaders: "true"
       Admin__Password: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+      # Off by default. When on, Caddy still refuses to proxy /openapi and /scalar, so the
+      # docs are reachable only via the loopback binding below (SSH tunnel).
+      OpenApi__Enabled: ${OPENAPI_ENABLED:-false}
     ports:
       # Bound to loopback: reachable by the deploy health poll on the host, never from the
       # internet. Public traffic arrives through Caddy over the compose network.

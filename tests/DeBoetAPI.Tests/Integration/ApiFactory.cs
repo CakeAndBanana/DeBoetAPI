@@ -19,7 +19,8 @@ public sealed class ApiFactory(
     string connectionString,
     int authPermitPerMinute = 10_000,
     bool trustForwardedHeaders = false,
-    string? logDirectory = null) : WebApplicationFactory<Program>
+    string? logDirectory = null,
+    bool enableOpenApi = false) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -40,6 +41,7 @@ public sealed class ApiFactory(
         // default. RateLimitTests passes a low limit to pin the throttling behaviour.
         builder.UseSetting("RateLimit:AuthPermitPerMinute", authPermitPerMinute.ToString());
         builder.UseSetting("Proxy:TrustForwardedHeaders", trustForwardedHeaders.ToString());
+        builder.UseSetting("OpenApi:Enabled", enableOpenApi.ToString());
 
         // Off by default so a test run does not scatter log files; LoggingTests passes a
         // temp directory to exercise the real sink.

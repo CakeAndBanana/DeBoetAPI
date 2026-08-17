@@ -20,6 +20,30 @@
 		respond 404
 	}
 
+	# API docs are not proxied. With OPENAPI_ENABLED=true they are served by the API on its
+	# loopback binding, so you reach them through an SSH tunnel and they need no credentials:
+	#
+	#   ssh -L 8080:127.0.0.1:8080 you@your-vps
+	#   open http://localhost:8080/scalar/v1
+	#
+	# To publish them instead, generate a hash with `docker run --rm caddy:2-alpine \
+	# caddy hash-password --plaintext 'your-password'`, put the user and hash in .env as
+	# DOCS_USER / DOCS_PASSWORD_HASH, and replace this block with:
+	#
+	#   handle /openapi* /scalar* {
+	#       basic_auth {
+	#           {$DOCS_USER} {$DOCS_PASSWORD_HASH}
+	#       }
+	#       reverse_proxy api:8080
+	#   }
+	handle /openapi* {
+		respond 404
+	}
+
+	handle /scalar* {
+		respond 404
+	}
+
 	handle {
 		reverse_proxy api:8080
 	}

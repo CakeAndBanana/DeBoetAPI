@@ -77,7 +77,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddValidation();
-builder.Services.AddOpenApi();
+builder.Services.AddAppOpenApi();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
@@ -160,7 +160,11 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-if (app.Environment.IsDevelopment())
+// Docs are opt-in rather than tied to the environment, so they can be turned on in Production
+// without also enabling developer exception pages and the rest of Development's behaviour.
+// Caddy does not proxy these paths, so on the VPS they are reachable only over the loopback
+// binding — i.e. through an SSH tunnel. See the Caddyfile before exposing them publicly.
+if (builder.Configuration.GetValue("OpenApi:Enabled", app.Environment.IsDevelopment()))
 {
     app.MapOpenApi();
     app.MapScalarApiReference();

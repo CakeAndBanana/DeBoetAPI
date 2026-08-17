@@ -65,7 +65,14 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: production
+    # Must match the GitHub Environment holding VPS_HOST / VPS_USER / VPS_SSH_KEY /
+    # VPS_APP_DIR. Environment secrets are invisible to jobs that do not name it, and a
+    # mismatch fails as an empty host rather than a missing-environment error.
+    environment: OVHCloud
+    permissions:
+      # Needed to pull the image from GHCR when the repository is private.
+      contents: read
+      packages: read
     steps:
       - uses: appleboy/ssh-action@v1
         with:
