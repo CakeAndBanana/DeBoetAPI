@@ -74,6 +74,21 @@ jobs:
       contents: read
       packages: read
     steps:
+      # TEMPORARY DIAGNOSTIC — delete once the deploy connects.
+      # Prints the fingerprint of whichever key is in VPS_SSH_KEY. A fingerprint is public
+      # information, so nothing secret is revealed; GitHub masks the key itself anyway.
+      - name: Identify the deploy key and target
+        run: |
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          echo "key fingerprint:"
+          ssh-keygen -lf /tmp/deploy_key || echo "  !! key did not parse"
+          rm -f /tmp/deploy_key
+          echo "username sha256 (deploy = e0f4...):"
+          printf '%s' "${{ secrets.VPS_USER }}" | sha256sum
+          echo "host reachable on 22:"
+          nc -z -w5 "${{ secrets.VPS_HOST }}" 22 && echo "  yes" || echo "  NO — wrong VPS_HOST or port blocked"
+
       - uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
