@@ -77,7 +77,16 @@ chain, forcing re-login.
 
 ## API docs
 
-`GET /openapi/v1.json` and the Scalar UI at `/scalar/v1`.
+`GET /openapi/v1.json` and the Scalar UI at `/scalar/v1`. On by default in Development;
+elsewhere controlled by `OpenApi:Enabled` / `OPENAPI_ENABLED` — deliberately not tied to the
+environment, so docs can be on in Production without developer exception pages coming too.
+
+Caddy proxies both paths, so when enabled they are **public**. To require a password, add a
+`basic_auth` block to the docs handlers in [caddy/Caddyfile](caddy/Caddyfile); the hash comes
+from `docker run --rm caddy:2-alpine caddy hash-password --plaintext 'your-password'`.
+
+The spec declares the JWT bearer scheme and marks which operations need it, so importing it
+into Insomnia or Postman gives you working auth rather than bare requests.
 
 ## The admin account
 
