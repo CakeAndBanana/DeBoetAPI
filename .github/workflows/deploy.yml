@@ -10,9 +10,18 @@ on:
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/deboetapi-api
 
+# One deploy at a time. Self-hosted runners execute jobs serially, but a queued second run
+# could still start deploying while the first is mid-restart. Not cancelling in progress: a
+# half-applied migration is worse than a slightly stale deploy.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Self-hosted runner on the VPS. Safe here because the repository is private, so only
+    # people with access can trigger a workflow that executes on the server.
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v5
 
@@ -27,7 +36,7 @@ jobs:
   build-and-push:
     needs: test
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
@@ -74,7 +83,6 @@ jobs:
       contents: read
       packages: read
     steps:
-
       - uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}

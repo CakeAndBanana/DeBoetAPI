@@ -139,7 +139,8 @@ Push to `master` — or a manual **Run workflow** — runs tests, publishes
 **VPS setup** — install Docker, create an app directory, and place `compose.prod.yaml`, the
 `caddy/` directory, and a `.env` filled in from `.env.example`.
 
-**GitHub secrets** — `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_DIR`.
+**GitHub secrets** — `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_DIR`, held in the
+`OVHCloud` environment
 
 ### TLS
 
