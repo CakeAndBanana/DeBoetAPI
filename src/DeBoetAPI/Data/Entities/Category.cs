@@ -27,11 +27,14 @@ public class Category
     public string PathSlug { get; set; } = string.Empty;
 
     /// <summary>
-    /// Meta title for Search Engines.
+    /// Meta title for Search Engines. Not required, but if not provided, the <see cref="Name"/> will be used as the meta title.
     /// </summary>
-    public string MetaTitle { get; set; } = string.Empty; 
+    public string? MetaTitle { get; set; } = string.Empty;
 
-    public string? Description { get; set; }
+    /// <summary>
+    /// Optional
+    /// </summary>
+    public string? MetaDescription { get; set; }
 
     /// <summary>The main parent. Null means this is a root category.</summary>
     public Guid? ParentId { get; set; }
@@ -56,6 +59,11 @@ public class Category
     /// Gives out if the category is active or not
     /// </summary>
     public bool IsActive { get; set; }
+
+    /// <summary>
+    /// Indicates if the category is shown in the menu or not
+    /// </summary>
+    public bool IsMenu { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

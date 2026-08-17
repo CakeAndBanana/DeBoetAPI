@@ -42,10 +42,11 @@ public sealed class CategoryTreeService(AppDbContext db)
         string name,
         string? slug,
         string? metaTitle,
-        string? description,
+        string? metaDescription,
         Guid? parentId,
         int sortOrder,
         bool isActive,
+        bool isMenu,
         CancellationToken ct)
     {
         Category? parent = null;
@@ -72,10 +73,11 @@ public sealed class CategoryTreeService(AppDbContext db)
             Slug = finalSlug,
             PathSlug = pathSlug,
             MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? name : metaTitle,
-            Description = description,
+            MetaDescription = metaDescription,
             ParentId = parentId,
             SortOrder = sortOrder,
             IsActive = isActive,
+            IsMenu = isMenu,
         };
 
         category.Path = BuildPath(parent, category.Id);
@@ -92,9 +94,10 @@ public sealed class CategoryTreeService(AppDbContext db)
         string name,
         string? slug,
         string? metaTitle,
-        string? description,
+        string? metaDescription,
         int sortOrder,
         bool isActive,
+        bool isMenu,
         CancellationToken ct)
     {
         var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id, ct);
@@ -124,9 +127,12 @@ public sealed class CategoryTreeService(AppDbContext db)
         category.Slug = finalSlug;
         category.PathSlug = newPathSlug;
         category.MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? name : metaTitle;
-        category.Description = description;
+        // No fallback to Name here, matching CreateAsync: a one-word meta description is
+        // worse for SEO than none at all, and search engines synthesise a better snippet.
+        category.MetaDescription = metaDescription;
         category.SortOrder = sortOrder;
         category.IsActive = isActive;
+        category.IsMenu = isMenu;
         category.UpdatedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);

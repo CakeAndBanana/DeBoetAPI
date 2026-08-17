@@ -64,6 +64,7 @@ public static class CategoryEndpoints
         bool rootsOnly = false,
         string? search = null,
         bool includeInactive = false,
+        bool menuOnly = false,
         int? page = null,
         int? pageSize = null)
     {
@@ -74,6 +75,11 @@ public static class CategoryEndpoints
         if (!includeInactive)
         {
             query = query.Where(c => c.IsActive);
+        }
+
+        if (menuOnly)
+        {
+            query = query.Where(c => c.IsMenu);
         }
 
         if (rootsOnly)
@@ -116,13 +122,21 @@ public static class CategoryEndpoints
         CancellationToken ct,
         Guid? rootId = null,
         int? maxDepth = null,
-        bool includeInactive = false)
+        bool includeInactive = false,
+        bool menuOnly = false)
     {
         var query = db.Categories.AsNoTracking();
 
         if (!includeInactive)
         {
             query = query.Where(c => c.IsActive);
+        }
+
+        // Building a nav menu is the whole reason the flag exists, so the tree endpoint —
+        // which is what a menu is rendered from — has to be able to filter on it.
+        if (menuOnly)
+        {
+            query = query.Where(c => c.IsMenu);
         }
 
         if (rootId is not null)
@@ -251,8 +265,8 @@ public static class CategoryEndpoints
         CancellationToken ct)
     {
         var result = await tree.CreateAsync(
-            request.Name, request.Slug, request.MetaTitle, request.Description,
-            request.ParentId, request.SortOrder, request.IsActive, ct);
+            request.Name, request.Slug, request.MetaTitle, request.MetaDescription,
+            request.ParentId, request.SortOrder, request.IsActive, request.IsMenu, ct);
 
         if (!result.Succeeded)
         {
@@ -279,8 +293,8 @@ public static class CategoryEndpoints
         CancellationToken ct)
     {
         var result = await tree.UpdateAsync(
-            id, request.Name, request.Slug, request.MetaTitle, request.Description,
-            request.SortOrder, request.IsActive, ct);
+            id, request.Name, request.Slug, request.MetaTitle, request.MetaDescription,
+            request.SortOrder, request.IsActive, request.IsMenu, ct);
 
         return result.Succeeded
             ? TypedResults.Ok(ToResponse(result.Category!))
@@ -378,8 +392,10 @@ public static class CategoryEndpoints
             : db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.PathSlug == idOrSlug, ct);
 
     private static CategoryResponse ToResponse(Category c) => new(
-        c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle, c.Description, c.ParentId, c.Depth,
-        c.SortOrder, c.IsActive, c.CreatedAt, c.UpdatedAt);
+        // MetaTitle is nullable on the entity but the service always fills it; the coalesce
+        // covers rows written outside the API so clients never see a null title.
+        c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle ?? c.Name, c.MetaDescription, c.ParentId,
+        c.Depth, c.SortOrder, c.IsActive, c.IsMenu, c.CreatedAt, c.UpdatedAt);
 
     /// <summary>
     /// Assembles the nested shape from a flat, depth-ordered list.
@@ -402,7 +418,7 @@ public static class CategoryEndpoints
         CategoryNode Build(Category c)
         {
             return new(
-            c.Id, c.Name, c.Slug, c.PathSlug, c.Depth, c.SortOrder, c.IsActive,
+            c.Id, c.Name, c.Slug, c.PathSlug, c.Depth, c.SortOrder, c.IsActive, c.IsMenu,
             childrenByParent.TryGetValue(c.Id, out var kids)
                 ? kids.Select(Build).ToList()
                 : []);

@@ -56,7 +56,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(c => c.Slug).HasMaxLength(200).IsRequired();
             e.Property(c => c.PathSlug).IsRequired();
             e.Property(c => c.MetaTitle).HasMaxLength(200);
-            e.Property(c => c.Description).HasMaxLength(2000);
+            e.Property(c => c.MetaDescription).HasMaxLength(2000);
             e.Property(c => c.Path).IsRequired();
 
             // The full route is the identity that has to be unique. Sibling-level uniqueness

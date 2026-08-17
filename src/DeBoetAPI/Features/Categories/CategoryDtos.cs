@@ -15,9 +15,9 @@ public sealed record CreateCategoryRequest
     [MaxLength(200)]
     public string? MetaTitle { get; init; }
 
-    /// <summary>Optional. Can be used to describe the category for users.</summary>
+    /// <summary>SEO meta description. Optional.</summary>
     [MaxLength(2000)]
-    public string? Description { get; init; }
+    public string? MetaDescription { get; init; }
 
     /// <summary>The main parent. Null creates a root category.</summary>
     public Guid? ParentId { get; init; }
@@ -26,6 +26,9 @@ public sealed record CreateCategoryRequest
 
     /// <summary>Defaults to true so a newly created category is immediately visible.</summary>
     public bool IsActive { get; init; } = true;
+
+    /// <summary>Whether the category appears in navigation. Defaults to true.</summary>
+    public bool IsMenu { get; init; } = true;
 }
 
 public sealed record UpdateCategoryRequest
@@ -40,14 +43,15 @@ public sealed record UpdateCategoryRequest
     [MaxLength(200)]
     public string? MetaTitle { get; init; }
 
-    /// <summary>Optional. Can be used to describe the category for users.</summary>
+    /// <summary>SEO meta description. Optional.</summary>
     [MaxLength(2000)]
-    public string? Description { get; init; }
+    public string? MetaDescription { get; init; }
 
     public int SortOrder { get; init; }
 
-    /// <summary>Defaults to true so a newly created category is immediately visible.</summary>
     public bool IsActive { get; init; } = true;
+
+    public bool IsMenu { get; init; } = true;
 }
 
 /// <summary>Null <see cref="NewParentId"/> promotes the category to a root.</summary>
@@ -68,11 +72,12 @@ public sealed record CategoryResponse(
     string Slug,
     string PathSlug,
     string MetaTitle,
-    string? Description,
+    string? MetaDescription,
     Guid? ParentId,
     int Depth,
     int SortOrder,
     bool IsActive,
+    bool IsMenu,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -90,6 +95,7 @@ public sealed record CategoryNode(
     int Depth,
     int SortOrder,
     bool IsActive,
+    bool IsMenu,
     IReadOnlyList<CategoryNode> Children);
 
 public sealed record DeleteCategoryResponse(IReadOnlyList<Guid> PromotedChildIds);

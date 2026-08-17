@@ -128,17 +128,20 @@ namespace DeBoetAPI.Data.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("depth");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("description");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool>("IsMenu")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_menu");
+
+                    b.Property<string>("MetaDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("meta_description");
+
                     b.Property<string>("MetaTitle")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("meta_title");
