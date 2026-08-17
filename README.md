@@ -77,35 +77,7 @@ chain, forcing re-login.
 
 ## API docs
 
-`GET /openapi/v1.json` and the Scalar UI at `/scalar/v1`. On by default in Development, off
-everywhere else — controlled by `OpenApi:Enabled`, **not** by the environment, so they can be
-switched on in Production without also enabling developer exception pages.
-
-The spec declares the JWT bearer scheme and marks which operations need it, so importing it
-into Insomnia or Postman gives you working auth rather than 22 bare requests.
-
-```
-Import → URL → http://localhost:8080/openapi/v1.json
-```
-
-Log in via `POST /api/v1/auth/login` (`admin` / `deboet`), then put the `accessToken` in the
-collection's Bearer field. Tokens last 15 minutes, so it is worth storing it as an environment
-variable — or using Insomnia's response chaining (`{% response %}` → Login → `$.accessToken`)
-so it re-authenticates itself.
-
-### Docs in production
-
-Set `OPENAPI_ENABLED=true` in `.env`. Caddy still refuses to proxy `/openapi*` and `/scalar*`,
-so the docs remain reachable only on the API's loopback binding — get at them with a tunnel:
-
-```bash
-ssh -L 8080:127.0.0.1:8080 you@your-vps
-# then open http://localhost:8080/scalar/v1
-```
-
-That keeps the default safe with no credentials to manage. To publish them instead, the
-Caddyfile carries a ready-to-use `basic_auth` block — generate the hash with
-`docker run --rm caddy:2-alpine caddy hash-password --plaintext 'your-password'`.
+`GET /openapi/v1.json` and the Scalar UI at `/scalar/v1`.
 
 ## The admin account
 
