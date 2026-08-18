@@ -2,6 +2,7 @@ using System.Text;
 using DeBoetAPI.Common;
 using DeBoetAPI.Data;
 using DeBoetAPI.Data.Entities;
+using DeBoetAPI.Features.Audit;
 using DeBoetAPI.Features.Auth;
 using DeBoetAPI.Features.Categories;
 using DeBoetAPI.Features.Items;
@@ -46,6 +47,9 @@ builder.Services.AddIdentityCore<AppUser>(options =>
 
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<CategoryTreeService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddScoped<AuditLog>();
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt section is not configured.");
@@ -183,5 +187,6 @@ app.MapHealthChecks("/health/ready", new()
 app.MapAuthEndpoints();
 app.MapItemEndpoints();
 app.MapCategoryEndpoints();
+app.MapAuditEndpoints();
 
 app.Run();

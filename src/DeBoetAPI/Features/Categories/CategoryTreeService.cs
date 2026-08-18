@@ -1,3 +1,4 @@
+using DeBoetAPI.Common;
 using DeBoetAPI.Data;
 using DeBoetAPI.Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +31,7 @@ public sealed record CategoryResult(CategoryError Error, Category? Category = nu
 /// <see cref="Category.Depth"/> are derived state — they are only ever written here, always
 /// inside a transaction, so a half-applied move cannot leave the tree inconsistent.
 /// </summary>
-public sealed class CategoryTreeService(AppDbContext db)
+public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 {
     /// <summary>Path segment separator. Ids are wrapped in it so prefix matching cannot straddle two ids.</summary>
     private const char Separator = '/';
@@ -78,12 +79,15 @@ public sealed class CategoryTreeService(AppDbContext db)
             SortOrder = sortOrder,
             IsActive = isActive,
             IsMenu = isMenu,
+            CreatedById = audit.ActorId,
+            UpdatedById = audit.ActorId,
         };
 
         category.Path = BuildPath(parent, category.Id);
         category.Depth = parent is null ? 0 : parent.Depth + 1;
 
         db.Categories.Add(category);
+        audit.RecordCategory(category, AuditAction.Created, $"created at {category.PathSlug}");
         await db.SaveChangesAsync(ct);
 
         return CategoryResult.Ok(category);
@@ -121,6 +125,16 @@ public sealed class CategoryTreeService(AppDbContext db)
             return CategoryResult.Fail(CategoryError.DuplicateSlug);
         }
 
+        // Captured before mutation so the trail records what actually changed.
+        var summary = AuditLog.Diff(
+            ("name", category.Name, name),
+            ("slug", category.Slug, finalSlug),
+            ("metaTitle", category.MetaTitle, string.IsNullOrWhiteSpace(metaTitle) ? name : metaTitle),
+            ("metaDescription", category.MetaDescription, metaDescription),
+            ("sortOrder", category.SortOrder, sortOrder),
+            ("isActive", category.IsActive, isActive),
+            ("isMenu", category.IsMenu, isMenu));
+
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         category.Name = name;
@@ -134,6 +148,12 @@ public sealed class CategoryTreeService(AppDbContext db)
         category.IsActive = isActive;
         category.IsMenu = isMenu;
         category.UpdatedAt = DateTimeOffset.UtcNow;
+        category.UpdatedById = audit.ActorId;
+
+        if (summary is not null)
+        {
+            audit.RecordCategory(category, AuditAction.Updated, summary);
+        }
 
         await db.SaveChangesAsync(ct);
 
@@ -201,6 +221,8 @@ public sealed class CategoryTreeService(AppDbContext db)
         category.PathSlug = newPathSlug;
         category.Depth += depthDelta;
         category.UpdatedAt = DateTimeOffset.UtcNow;
+        category.UpdatedById = audit.ActorId;
+        audit.RecordCategory(category, AuditAction.Moved, $"route: {oldPathSlug} -> {newPathSlug}");
         await db.SaveChangesAsync(ct);
 
         await RewriteSubtreeAsync(oldPath, newPath, depthDelta, ct);
@@ -259,9 +281,11 @@ public sealed class CategoryTreeService(AppDbContext db)
             child.PathSlug = newPathSlug;
             child.Depth += depthDelta;
             child.UpdatedAt = DateTimeOffset.UtcNow;
+            child.UpdatedById = audit.ActorId;
+            audit.RecordCategory(child, AuditAction.ChildPromoted,
+                $"promoted to {(newParent is null ? "root" : newParent.Name)} after '{category.Name}' was deleted");
             await db.SaveChangesAsync(ct);
 
-            // Each promoted child drags its own descendants along.
             await RewriteSubtreeAsync(oldPath, newPath, depthDelta, ct);
 
             if (oldPathSlug != newPathSlug)
@@ -270,6 +294,10 @@ public sealed class CategoryTreeService(AppDbContext db)
             }
         }
 
+        // Recorded before removal so the snapshot still has the name and route, and committed
+        // in the same transaction - the deletion is the event most worth being able to look up.
+        audit.RecordCategory(category, AuditAction.Deleted,
+            children.Count == 0 ? null : $"{children.Count} child(ren) promoted");
         db.Categories.Remove(category);
         await db.SaveChangesAsync(ct);
 
@@ -301,8 +329,6 @@ public sealed class CategoryTreeService(AppDbContext db)
             return CategoryError.LinkDuplicatesMainParent;
         }
 
-        // Linking a category under its own descendant would make traversal of "all placements"
-        // loop forever.
         if (IsDescendantOf(parent, child))
         {
             return CategoryError.Cycle;
@@ -314,17 +340,40 @@ public sealed class CategoryTreeService(AppDbContext db)
         }
 
         db.CategoryLinks.Add(new CategoryLink { ChildId = childId, ParentId = parentId });
+        audit.RecordCategory(child, AuditAction.LinkAdded, $"also placed under '{parent.Name}'");
         await db.SaveChangesAsync(ct);
         return CategoryError.None;
     }
 
     public async Task<CategoryError> RemoveLinkAsync(Guid childId, Guid parentId, CancellationToken ct)
     {
+        // Loaded before the delete so the audit entry can name both ends of the link.
+        var child = await db.Categories.FirstOrDefaultAsync(c => c.Id == childId, ct);
+        var parent = await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == parentId, ct);
+
+        // ExecuteDeleteAsync bypasses the change tracker and commits on its own, so it is
+        // wrapped alongside the audit write rather than left to run independently.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+
         var removed = await db.CategoryLinks
             .Where(l => l.ChildId == childId && l.ParentId == parentId)
             .ExecuteDeleteAsync(ct);
 
-        return removed == 0 ? CategoryError.NotFound : CategoryError.None;
+        if (removed == 0)
+        {
+            await transaction.RollbackAsync(ct);
+            return CategoryError.NotFound;
+        }
+
+        if (child is not null)
+        {
+            audit.RecordCategory(child, AuditAction.LinkRemoved,
+                $"no longer placed under '{parent?.Name ?? parentId.ToString()}'");
+            await db.SaveChangesAsync(ct);
+        }
+
+        await transaction.CommitAsync(ct);
+        return CategoryError.None;
     }
 
     /// <summary>Ancestors of a category, root first. Read straight out of the path — no recursion.</summary>

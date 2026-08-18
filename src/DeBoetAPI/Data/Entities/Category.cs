@@ -65,6 +65,15 @@ public class Category
     /// </summary>
     public bool IsMenu { get; set; }
 
+    /// <summary>Who created it. Null for rows made outside a request (seeding).</summary>
+    public Guid? CreatedById { get; set; }
+
+    /// <summary>
+    /// Who last changed it. Denormalised so listing categories does not need a join against
+    /// the audit trail; <see cref="AuditEntry"/> holds the full history.
+    /// </summary>
+    public Guid? UpdatedById { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

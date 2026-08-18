@@ -39,6 +39,7 @@ public static class ItemEndpoints
         SetItemCategoriesRequest request,
         ClaimsPrincipal principal,
         AppDbContext db,
+        AuditLog audit,
         CancellationToken ct)
     {
         var ownerId = principal.GetUserId();
@@ -79,6 +80,8 @@ public static class ItemEndpoints
         }));
 
         item.UpdatedAt = DateTimeOffset.UtcNow;
+        audit.RecordItem(item, AuditAction.CategoriesAssigned,
+            requestedIds.Count == 0 ? "all categories cleared" : $"{requestedIds.Count} category/categories assigned");
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -151,6 +154,7 @@ public static class ItemEndpoints
         CreateItemRequest request,
         ClaimsPrincipal principal,
         AppDbContext db,
+        AuditLog audit,
         CancellationToken ct)
     {
         var item = new Item
@@ -161,6 +165,7 @@ public static class ItemEndpoints
         };
 
         db.Items.Add(item);
+        audit.RecordItem(item, AuditAction.Created);
         await db.SaveChangesAsync(ct);
 
         var response = new ItemResponse(item.Id, item.Name, item.Description, item.CreatedAt, item.UpdatedAt);
@@ -172,6 +177,7 @@ public static class ItemEndpoints
         UpdateItemRequest request,
         ClaimsPrincipal principal,
         AppDbContext db,
+        AuditLog audit,
         CancellationToken ct)
     {
         var ownerId = principal.GetUserId();
@@ -182,9 +188,19 @@ public static class ItemEndpoints
             return TypedResults.NotFound();
         }
 
+        var summary = AuditLog.Diff(
+            ("name", item.Name, request.Name),
+            ("description", item.Description, request.Description));
+
         item.Name = request.Name;
         item.Description = request.Description;
         item.UpdatedAt = DateTimeOffset.UtcNow;
+
+        if (summary is not null)
+        {
+            audit.RecordItem(item, AuditAction.Updated, summary);
+        }
+
         await db.SaveChangesAsync(ct);
 
         return TypedResults.Ok(new ItemResponse(item.Id, item.Name, item.Description, item.CreatedAt, item.UpdatedAt));
@@ -194,13 +210,23 @@ public static class ItemEndpoints
         Guid id,
         ClaimsPrincipal principal,
         AppDbContext db,
+        AuditLog audit,
         CancellationToken ct)
     {
         var ownerId = principal.GetUserId();
-        var deleted = await db.Items
-            .Where(i => i.Id == id && i.OwnerId == ownerId)
-            .ExecuteDeleteAsync(ct);
 
-        return deleted == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
+        // Loaded rather than bulk-deleted: the audit entry needs the name, and a deletion is
+        // the event most worth being able to look up afterwards.
+        var item = await db.Items.FirstOrDefaultAsync(i => i.Id == id && i.OwnerId == ownerId, ct);
+        if (item is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        audit.RecordItem(item, AuditAction.Deleted);
+        db.Items.Remove(item);
+        await db.SaveChangesAsync(ct);
+
+        return TypedResults.NoContent();
     }
 }

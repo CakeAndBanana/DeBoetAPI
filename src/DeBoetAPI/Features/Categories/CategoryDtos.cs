@@ -78,6 +78,9 @@ public sealed record CategoryResponse(
     int SortOrder,
     bool IsActive,
     bool IsMenu,
+    Guid? CreatedById,
+    /// <summary>Who last changed it. Full history is at /categories/{id}/history.</summary>
+    Guid? UpdatedById,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 

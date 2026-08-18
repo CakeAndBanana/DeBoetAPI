@@ -395,7 +395,8 @@ public static class CategoryEndpoints
         // MetaTitle is nullable on the entity but the service always fills it; the coalesce
         // covers rows written outside the API so clients never see a null title.
         c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle ?? c.Name, c.MetaDescription, c.ParentId,
-        c.Depth, c.SortOrder, c.IsActive, c.IsMenu, c.CreatedAt, c.UpdatedAt);
+        c.Depth, c.SortOrder, c.IsActive, c.IsMenu, c.CreatedById, c.UpdatedById,
+        c.CreatedAt, c.UpdatedAt);
 
     /// <summary>
     /// Assembles the nested shape from a flat, depth-ordered list.

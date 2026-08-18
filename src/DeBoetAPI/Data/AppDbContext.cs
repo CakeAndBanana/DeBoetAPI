@@ -19,6 +19,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<ItemCategory> ItemCategories => Set<ItemCategory>();
 
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -58,26 +60,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(c => c.MetaTitle).HasMaxLength(200);
             e.Property(c => c.MetaDescription).HasMaxLength(2000);
             e.Property(c => c.Path).IsRequired();
-
-            // The full route is the identity that has to be unique. Sibling-level uniqueness
-            // falls out of it for free: two children of one parent sharing a segment would
-            // produce the same path slug. Segments stay reusable across branches, so
-            // christmas-lights and halloween-lights can both exist.
             e.HasIndex(c => c.PathSlug).IsUnique();
             e.HasIndex(c => c.Slug);
             e.HasIndex(c => new { c.ParentId, c.SortOrder });
             e.HasIndex(c => c.IsActive);
 
-            // Subtree lookups are `path LIKE '/a/b/%'`. Under a non-C collation a default
-            // btree index cannot serve a prefix LIKE, so the operator class is load-bearing
-            // rather than an optimisation.
             e.HasIndex(c => c.Path).HasOperators("text_pattern_ops");
 
             e.HasOne(c => c.Parent)
                 .WithMany(c => c.Children)
                 .HasForeignKey(c => c.ParentId)
-                // Deletion promotes children to the grandparent in application code; letting
-                // the database cascade would silently destroy whole branches instead.
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -120,14 +112,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
                 .HasFilter("is_primary");
         });
 
+        builder.Entity<AuditEntry>(e =>
+        {
+            e.Property(a => a.EntityName).HasMaxLength(200).IsRequired();
+            e.Property(a => a.EntityPath).HasMaxLength(400);
+            e.Property(a => a.ChangedByName).HasMaxLength(256).IsRequired();
+            e.Property(a => a.Summary).HasMaxLength(4000);
+
+            e.Property(a => a.EntityType).HasConversion<string>().HasMaxLength(40);
+            e.Property(a => a.Action).HasConversion<string>().HasMaxLength(40);
+
+            // "History for this record", the most common query.
+            e.HasIndex(a => new { a.EntityType, a.EntityId, a.ChangedAt });
+
+            // "Everything, newest first" for the global feed.
+            e.HasIndex(a => a.ChangedAt);
+
+            // "Everything this person touched".
+            e.HasIndex(a => a.ChangedById);
+        });
+
         ApplySnakeCaseNames(builder);
     }
 
-    /// <summary>
-    /// Rewrites every table, column, key and index name to snake_case so the schema reads
-    /// naturally from psql. Applied last, after all entity configuration, so it also covers
-    /// the Identity tables inherited from <see cref="IdentityDbContext{TUser,TRole,TKey}"/>.
-    /// </summary>
     private static void ApplySnakeCaseNames(ModelBuilder builder)
     {
         foreach (var entity in builder.Model.GetEntityTypes())

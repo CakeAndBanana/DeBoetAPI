@@ -9,7 +9,7 @@ ASP.NET Core 10 Minimal API backed by PostgreSQL, containerized, with JWT auth b
 | Runtime | .NET 10 / ASP.NET Core Minimal APIs |
 | Database | PostgreSQL 17, EF Core 10 + Npgsql |
 | Auth | ASP.NET Identity, JWT access tokens + rotating refresh tokens |
-| Docs | Built-in OpenAPI + Scalar (`/scalar/v1`), opt-in outside Development |
+| Docs | Built-in OpenAPI + Scalar (`/scalar/v1`) |
 | Containers | Docker Compose; chiseled non-root runtime image |
 | TLS | Caddy reverse proxy, automatic Let's Encrypt certificates |
 | CI/CD | GitHub Actions → GHCR → SSH deploy |
@@ -20,7 +20,7 @@ ASP.NET Core 10 Minimal API backed by PostgreSQL, containerized, with JWT auth b
 - Docker Desktop (needs WSL2 on Windows: `wsl --install`, reboot, then install Docker Desktop)
 - `dotnet tool install --global dotnet-ef` (v10+)
 
-## Run it
+## Run it locally for development
 
 ```bash
 cp .env.example .env          # fill in POSTGRES_PASSWORD and JWT_SIGNING_KEY
@@ -40,26 +40,8 @@ dotnet run --project src/DeBoetAPI
 
 ## API
 
-All routes are under `/api/v1`. Full schema at `/scalar/v1` when running in Development.
+All routes are under `/api/v1`. Full schema at `/scalar/v1` can be checked whenever running the application
 
-| Method | Route | Auth | Purpose |
-|---|---|---|---|
-| POST | `/auth/register` | — | Create account, returns token pair |
-| POST | `/auth/login` | — | Credentials → token pair |
-| POST | `/auth/refresh` | — | Rotate refresh token → new pair |
-| POST | `/auth/logout` | — | Revoke a refresh token |
-| GET | `/auth/me` | Bearer | Current user |
-| GET | `/items` | Bearer | Paginated, owner-scoped (`?page=&pageSize=`, max 100) |
-| POST | `/items` | Bearer | Create |
-| GET/PUT/DELETE | `/items/{id}` | Bearer | Owner-scoped single-item operations |
-| GET/PUT | `/items/{id}/categories` | Bearer | Read or replace an item's category assignments |
-| GET | `/categories` | Bearer | Flat list (`?parentId=`, `?rootsOnly=`, `?search=`, `?includeInactive=`) |
-| GET | `/categories/tree` | Bearer | Nested tree (`?rootId=`, `?maxDepth=`) |
-| GET | `/categories/{idOrSlug}` | Bearer | Detail + breadcrumb + children + secondary parents |
-| GET | `/categories/{id}/items` | Bearer | `?includeDescendants=true` |
-| POST/PUT/DELETE | `/categories`, `/categories/{id}` | **Admin** | Create, edit, delete |
-| POST | `/categories/{id}/move` | **Admin** | Re-parent, rewriting the subtree |
-| POST/DELETE | `/categories/{id}/links[/{parentId}]` | **Admin** | Secondary placements |
 
 ### Login
 
@@ -81,12 +63,6 @@ chain, forcing re-login.
 elsewhere controlled by `OpenApi:Enabled` / `OPENAPI_ENABLED` — deliberately not tied to the
 environment, so docs can be on in Production without developer exception pages coming too.
 
-Caddy proxies both paths, so when enabled they are **public**. To require a password, add a
-`basic_auth` block to the docs handlers in [caddy/Caddyfile](caddy/Caddyfile); the hash comes
-from `docker run --rm caddy:2-alpine caddy hash-password --plaintext 'your-password'`.
-
-The spec declares the JWT bearer scheme and marks which operations need it, so importing it
-into Insomnia or Postman gives you working auth rather than bare requests.
 
 ## The admin account
 
@@ -97,6 +73,10 @@ On startup the API ensures an `Admin` role exists and seeds one administrator:
 | Username | `admin` |
 | Password | `deboet` |
 | Email | `admin@deboetapi.local` |
+
+Please change the password immediately after first login. 
+The admin account is **not** created on every startup, just the first time the database is created. 
+The admin account can be used to create other users and assign them the `Admin` role.
 
 ## Logging
 
@@ -110,17 +90,6 @@ logs/deboetapi-20260818.log
 Thirty days are kept; older files are deleted as new days roll over. A single day is also
 capped at 100 MB.
 
-## Tests
-
-```bash
-dotnet test
-```
-
-Integration tests boot the real application with `WebApplicationFactory` against a real
-PostgreSQL instance — only configuration is overridden, so the DI graph, middleware pipeline,
-migrations and generated SQL are all the ones production runs. They cover the auth flow
-(including refresh rotation and reuse detection), owner isolation on `/items`, paging, health
-probes, rate limiting, and that refresh tokens are never persisted in plaintext.
 
 ## Migrations
 
@@ -132,23 +101,36 @@ Tables and columns are snake_case (including the Identity tables)
 
 ## Deployment
 
-Push to `master` — or a manual **Run workflow** — runs tests, publishes
+Push to `master` or a manual **Run workflow** — runs tests, publishes
 `ghcr.io/<owner>/deboetapi-api`, then SSHes to the VPS, pulls, restarts, and gates the job on
 `/health/ready` responding. Pull requests run the tests only.
 
-**VPS setup** — install Docker, create an app directory, and place `compose.prod.yaml`, the
-`caddy/` directory, and a `.env` filled in from `.env.example`.
+The manual run would only trigger the tests, not the publishes, so you can run the tests on a PR without having to merge it first.
 
-**GitHub secrets** — `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_DIR`, held in the
-`OVHCloud` environment
+**VPS setup**
+Install docker, create the app directory and fill in the env file with the correct values.
+
+You would need to create a deploy user and add the public key to the `~/.ssh/authorized_keys` file of that user. 
+private key should be added to the GitHub secrets as `VPS_SSH_KEY`.
+
+Command to generate the key pair:
+ssh-keygen -t ed25519 -C "github-actions@deboetapi" -f "$env:USERPROFILE\.ssh\deboetapi_deploy"
+
+When you deploy the first time, you need to copy the the compose file and Caddyfile to the VPS with these commands:
+
+commands to copy the files to the VPS (replace YOUR_VPS_IP with your VPS IP address):
+scp -i "$env:USERPROFILE\.ssh\deboetapi_deploy" compose.prod.yaml deploy@YOUR_VPS_IP:/srv/deboetapi/
+scp -i "$env:USERPROFILE\.ssh\deboetapi_deploy" -r caddy deploy@YOUR_VPS_IP:/srv/deboetapi/
+scp -i "$env:USERPROFILE\.ssh\deboetapi_deploy" .env.example deploy@YOUR_VPS_IP:/srv/deboetapi/.env
+
+then run `docker compose up -d` once to create the containers. After that, the GitHub Actions workflow will handle the rest.
+
+**GitHub secrets**
+`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_DIR`, held in the
+Github environment, if you wanna change it. the dockerfile requests the secrets to be in the environment variable named 'OVHCloud'.
+
 
 ### TLS
 
 Caddy terminates HTTPS and reverse-proxies to the API over the private compose network. It
-obtains and renews Let's Encrypt certificates automatically — there is no certbot cron job and
-nothing to remember. HTTP is 308-redirected to HTTPS, and HSTS, `X-Content-Type-Options` and
-`Referrer-Policy` are set on every response.
-
-Two prerequisites before the first `up`: `DOMAIN` must already resolve to the server's public
-IP, and ports **80 and 443** must be open. Caddy proves domain control over both; if either is
-blocked, certificate issuance fails and the site will not serve.
+obtains and renews Let's Encrypt certificates automatically.

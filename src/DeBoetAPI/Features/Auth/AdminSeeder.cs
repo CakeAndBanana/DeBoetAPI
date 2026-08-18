@@ -24,8 +24,7 @@ public sealed class AdminSeedOptions
 }
 
 /// <summary>
-/// Ensures the Admin role and a bootstrap administrator exist. Without this there is no way
-/// to mint the first admin, and every write route would be unreachable on a fresh database.
+/// Ensures the Admin role and a bootstrap administrator exist.
 /// </summary>
 public static class AdminSeeder
 {
@@ -56,8 +55,6 @@ public static class AdminSeeder
 
         var userManager = services.GetRequiredService<UserManager<AppUser>>();
 
-        // Look up by name first: the account is identified by its username, and the email is
-        // only a placeholder to satisfy RequireUniqueEmail.
         var user = await userManager.FindByNameAsync(options.Username);
         if (user is not null)
         {
@@ -74,9 +71,6 @@ public static class AdminSeeder
             DisplayName = "Administrator",
         };
 
-        // The password is hashed directly rather than passed to CreateAsync, so the configured
-        // value is accepted verbatim without loosening the password policy that every
-        // real registration still has to satisfy.
         user.PasswordHash = userManager.PasswordHasher.HashPassword(user, options.Password);
 
         var created = await userManager.CreateAsync(user);

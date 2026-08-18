@@ -113,6 +113,74 @@ namespace DeBoetAPI.Data.Migrations
                     b.ToTable("asp_net_users", (string)null);
                 });
 
+            modelBuilder.Entity("DeBoetAPI.Data.Entities.AuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("action");
+
+                    b.Property<DateTimeOffset>("ChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("changed_at");
+
+                    b.Property<Guid?>("ChangedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("changed_by_id");
+
+                    b.Property<string>("ChangedByName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("changed_by_name");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("entity_name");
+
+                    b.Property<string>("EntityPath")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("entity_path");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<string>("Summary")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("summary");
+
+                    b.HasKey("Id")
+                        .HasName("pk_audit_entries");
+
+                    b.HasIndex("ChangedAt")
+                        .HasDatabaseName("ix_audit_entries_changed_at");
+
+                    b.HasIndex("ChangedById")
+                        .HasDatabaseName("ix_audit_entries_changed_by_id");
+
+                    b.HasIndex("EntityType", "EntityId", "ChangedAt")
+                        .HasDatabaseName("ix_audit_entries_entity_type_entity_id_changed_at");
+
+                    b.ToTable("audit_entries");
+                });
+
             modelBuilder.Entity("DeBoetAPI.Data.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -123,6 +191,10 @@ namespace DeBoetAPI.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_id");
 
                     b.Property<int>("Depth")
                         .HasColumnType("integer")
@@ -179,6 +251,10 @@ namespace DeBoetAPI.Data.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_id");
 
                     b.HasKey("Id")
                         .HasName("pk_categories");
