@@ -114,14 +114,18 @@ You would need to create a deploy user and add the public key to the `~/.ssh/aut
 private key should be added to the GitHub secrets as `VPS_SSH_KEY`.
 
 Command to generate the key pair:
+```
 ssh-keygen -t ed25519 -C "github-actions@deboetapi" -f "$env:USERPROFILE\.ssh\deboetapi_deploy"
+```
 
 When you deploy the first time, you need to copy the the compose file and Caddyfile to the VPS with these commands:
 
 commands to copy the files to the VPS (replace YOUR_VPS_IP with your VPS IP address):
+```
 scp -i "$env:USERPROFILE\.ssh\deboetapi_deploy" compose.prod.yaml deploy@YOUR_VPS_IP:/srv/deboetapi/
 scp -i "$env:USERPROFILE\.ssh\deboetapi_deploy" -r caddy deploy@YOUR_VPS_IP:/srv/deboetapi/
 scp -i "$env:USERPROFILE\.ssh\deboetapi_deploy" .env.example deploy@YOUR_VPS_IP:/srv/deboetapi/.env
+```
 
 then run `docker compose up -d` once to create the containers. After that, the GitHub Actions workflow will handle the rest.
 
