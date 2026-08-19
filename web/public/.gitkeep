@@ -1,0 +1,2 @@
+Keeps this directory in git. Next serves everything here at the site root.
+Couldn't find a better way to do this, so this is the best solution for now.
