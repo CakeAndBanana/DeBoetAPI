@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Alert, Button, Card, Group, NumberInput, Select, Stack, Switch, Textarea, TextInput,
+  Alert, Button, Card, Group, Select, Stack, Switch, Textarea, TextInput,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
@@ -25,10 +25,11 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
   const form = useForm<CategoryInput>({
     initialValues: {
       name: initial?.name ?? '',
-      slug: initial?.slug ?? '',
       metaTitle: initial?.metaTitle ?? '',
       metaDescription: initial?.metaDescription ?? '',
       parentId: initial?.parentId ?? null,
+      // Not shown, but still submitted: the API's SortOrder has no default, so leaving it
+      // out of the payload would silently reset an existing category's ordering to 0.
       sortOrder: initial?.sortOrder ?? 0,
       isActive: initial?.isActive ?? true,
       isMenu: initial?.isMenu ?? true,
@@ -38,7 +39,8 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
 
   function submit(values: CategoryInput) {
     startTransition(async () => {
-      const payload = { ...values, slug: values.slug?.trim() || undefined };
+      // No slug: omitting it makes the API derive one from the name, every time.
+      const payload = { ...values, slug: undefined };
       const result = id ? await updateCategory(id, payload) : await createCategory(payload);
 
       if (!result.ok) {
@@ -56,21 +58,16 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
     <Card withBorder maw={640}>
       <form onSubmit={form.onSubmit(submit)}>
         <Stack>
-          {hasChildren && (
-            <Alert color="yellow" title="Renaming rewrites URLs below this category">
-              The route is built from names, so changing this one also changes the route of
-              every category beneath it. Existing links to those pages will break.
+          {id && (
+            <Alert color="yellow" title="Renaming changes the URL">
+              The slug is always derived from the name, so renaming changes this
+              category&apos;s route
+              {hasChildren ? ' and the route of every category beneath it' : ''}. Existing
+              links will break.
             </Alert>
           )}
 
           <TextInput label="Name" withAsterisk {...form.getInputProps('name')} />
-
-          <TextInput
-            label="Slug"
-            description="Left blank, it is derived from the name. Separators are stripped — a dash only ever joins levels."
-            placeholder="christmaslights"
-            {...form.getInputProps('slug')}
-          />
 
           {!id && (
             <Select
@@ -95,8 +92,6 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
             minRows={2}
             {...form.getInputProps('metaDescription')}
           />
-
-          <NumberInput label="Sort order" {...form.getInputProps('sortOrder')} />
 
           <Group>
             <Switch
