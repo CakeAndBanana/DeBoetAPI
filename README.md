@@ -12,6 +12,7 @@ ASP.NET Core 10 Minimal API backed by PostgreSQL, containerized, with JWT auth b
 | Docs | Built-in OpenAPI + Scalar (`/scalar/v1`) |
 | Containers | Docker Compose; chiseled non-root runtime image |
 | TLS | Caddy reverse proxy, automatic Let's Encrypt certificates |
+| Admin UI | Next.js 16 + React 19 + Mantine, server-side token handling |
 | CI/CD | GitHub Actions → GHCR → SSH deploy |
 
 ## Prerequisites
@@ -77,6 +78,60 @@ On startup the API ensures an `Admin` role exists and seeds one administrator:
 Please change the password immediately after first login. 
 The admin account is **not** created on every startup, just the first time the database is created. 
 The admin account can be used to create other users and assign them the `Admin` role.
+
+## Admin panel
+
+A Next.js app in [web/](web/) for managing the category tree and reading the change history.
+Runs as its own container beside the API; Caddy serves it on `ADMIN_DOMAIN`.
+
+```bash
+cd web
+cp .env.example .env.local     # API_BASE_URL + a 32-char SESSION_SECRET
+npm install
+npm run dev                    # needs Node 20+
+```
+
+### Tokens never reach the browser
+
+The panel is a **backend-for-frontend**. Signing in posts to the panel's own server, which
+exchanges credentials with the API and seals the JWT pair into an encrypted, `httpOnly`
+cookie. Every API call is then made server-side, from a Server Component or a Server Action.
+The browser only ever holds an opaque cookie, so a script injected into the page has nothing
+to steal — and since the container reaches the API at `http://api:8080` over the compose
+network, CORS never applies and requests never leave the host.
+
+**Refreshing is serialised, and must stay that way.** Access tokens last 15 minutes and
+refresh tokens rotate; presenting a consumed refresh token makes the API revoke the user's
+entire chain. A dashboard issuing several requests at once would otherwise refresh several
+times, replay a spent token, and sign the admin out at random. `refreshTokens()` in
+[web/src/lib/api.ts](web/src/lib/api.ts) therefore shares one in-flight promise per token,
+and keeps it briefly after settling so a request still carrying the old cookie joins it
+rather than redeeming the spent token itself.
+
+Refreshing happens in [middleware](web/src/middleware.ts), not during render: Next.js only
+allows writing cookies from middleware, Route Handlers and Server Actions, so a refresh at
+render time would rotate the token with nowhere to store it.
+
+Non-admins are refused at sign-in rather than being let in to hit a 403 on every page. That
+is a UX gate only — the API enforces the real check.
+
+### Types come from the API
+
+```bash
+npm run gen:api    # regenerates src/lib/api-types.ts from /openapi/v1.json
+```
+
+Re-run it whenever the API changes; hand-written types drift silently.
+
+### Working on Mantine inside Server Components
+
+Two traps, both of which fail with `Element type is invalid` or `Functions cannot be passed
+directly to Client Components`:
+
+- **No dot notation.** Use `AppShellHeader`, `TableThead` and friends, not `AppShell.Header`
+  or `Table.Thead` — a Server Component holds only a *reference* to a client component, so
+  its sub-components are `undefined`.
+- **No function props.** `component={Link}` has to live in a `'use client'` file.
 
 ## Logging
 

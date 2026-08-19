@@ -42,3 +42,21 @@
 		reverse_proxy api:8080
 	}
 }
+
+# The admin panel. A separate site block rather than a path on the API domain, so the root
+# domain stays free for a public storefront later and the two get independent certificates.
+{$ADMIN_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# The panel is not a public page and must never be indexed or framed.
+		X-Frame-Options "DENY"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+
+	reverse_proxy web:3000
+}
