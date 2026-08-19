@@ -46,3 +46,13 @@ export function canDrop(nodes: CategoryNode[], draggedId: string, targetId: stri
 
   return !collectSubtreeIds(dragged).has(targetId);
 }
+
+/**
+ * How many categories disappear when this node is collapsed — the whole subtree, not just the
+ * direct children. Collapsing a parent hides its grandchildren too, so counting one level
+ * would under-report what the user can no longer see.
+ */
+export function countDescendants(node: CategoryNode): number {
+  // collectSubtreeIds includes the node itself, which is still visible when collapsed.
+  return collectSubtreeIds(node).size - 1;
+}

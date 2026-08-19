@@ -11,7 +11,7 @@ import {
   IconPencil, IconPlus, IconTrash,
 } from '@tabler/icons-react';
 import type { CategoryNode } from '@/lib/categories';
-import { canDrop } from '@/lib/tree-utils';
+import { canDrop, countDescendants } from '@/lib/tree-utils';
 import { deleteCategory, moveCategory } from './actions';
 
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
@@ -227,6 +227,8 @@ function Branch(props: BranchProps) {
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
   const isCollapsed = collapsed.has(node.id);
+  // The whole subtree vanishes, not just the direct children.
+  const hiddenCount = countDescendants(node);
   const isDragging = dragged === node.id;
   const isValidTarget = dragged !== null && canDrop(nodes, dragged, node.id);
   const isHovered = dropTarget === node.id && isValidTarget;
@@ -293,7 +295,7 @@ function Branch(props: BranchProps) {
             {!node.isMenu && <Badge color="yellow" size="sm">off menu</Badge>}
             {hasChildren && isCollapsed && (
               <Badge color="gray" variant="light" size="sm">
-                {children.length} hidden
+                {hiddenCount} hidden
               </Badge>
             )}
           </Group>
