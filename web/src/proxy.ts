@@ -3,18 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { applyTokens, isExpiring, refreshTokens } from '@/lib/api';
 import { sessionOptions, type AdminSession } from '@/lib/session';
 
-/**
- * Refreshes the access token before the page renders.
- *
- * This lives in middleware rather than in the pages because Next.js only permits writing
- * cookies from middleware, Route Handlers and Server Actions — never during a Server Component
- * render. Refreshing at render time would obtain a rotated refresh token with nowhere to store
- * it, and the next request would replay the consumed one, which the API treats as theft and
- * punishes by revoking the whole chain.
- */
-export async function middleware(request: NextRequest) {
+
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
-  const session = await getIronSession<AdminSession>(request, response, sessionOptions);
+  const session = await getIronSession<AdminSession>(request, response, sessionOptions());
 
   if (!session.refreshToken) {
     return isLoginRoute(request) ? response : redirectToLogin(request);
@@ -24,7 +16,6 @@ export async function middleware(request: NextRequest) {
     const tokens = await refreshTokens(session.refreshToken);
 
     if (!tokens) {
-      // The grant is gone — expired, revoked, or the chain was burned by a replay.
       session.destroy();
       return isLoginRoute(request) ? response : redirectToLogin(request);
     }
@@ -53,7 +44,5 @@ function redirectToLogin(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  // Everything except the auth route handlers, Next internals and static files. The login
-  // POST must stay reachable while signed out.
   matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico).*)'],
 };

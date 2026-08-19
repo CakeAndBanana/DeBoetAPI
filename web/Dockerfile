@@ -9,8 +9,8 @@ FROM node:24-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY web/ ./
-# Next bakes nothing secret at build time here — every value is read at runtime — so no
-# build args are needed.
+# No build args: every secret is read at request time. Anything validated at module scope
+# would be evaluated here during page-data collection and would need to exist at build.
 RUN npm run build
 
 FROM node:24-alpine AS runtime

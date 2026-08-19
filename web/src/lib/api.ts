@@ -6,7 +6,7 @@ import { sessionOptions, type AdminSession } from './session';
 
 const API_BASE = process.env.API_BASE_URL ?? 'http://127.0.0.1:8080';
 
-/** Refresh this long before the access token actually expires, so requests never race the boundary. */
+
 const REFRESH_MARGIN_MS = 60_000;
 
 export interface TokenPair {
@@ -17,18 +17,9 @@ export interface TokenPair {
 }
 
 export async function getSession() {
-  return getIronSession<AdminSession>(await cookies(), sessionOptions);
+  return getIronSession<AdminSession>(await cookies(), sessionOptions());
 }
 
-/**
- * In-flight refreshes, keyed by the refresh token being consumed.
- *
- * The API treats a replayed refresh token as theft and revokes the user's entire chain, so two
- * concurrent refreshes with the same token would silently sign the admin out. Callers holding
- * the same token therefore share one promise. Entries linger briefly after settling because a
- * request that started before the refresh finished still carries the old cookie, and must be
- * given the new tokens rather than trying to redeem the consumed one itself.
- */
 const inFlight = new Map<string, Promise<TokenPair | null>>();
 
 export function refreshTokens(refreshToken: string): Promise<TokenPair | null> {
@@ -90,13 +81,6 @@ export async function logout(refreshToken: string | undefined): Promise<void> {
   }).catch(() => undefined); // Signing out locally must succeed even if the API is unreachable.
 }
 
-/**
- * Calls the API with the session's bearer token.
- *
- * Reads happen during Server Component render, where Next.js forbids writing cookies — so a
- * refresh here could not be persisted, and the rotated token would be lost. Middleware
- * refreshes ahead of render instead; this only reports a 401 so the caller can redirect.
- */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const session = await getSession();
 
@@ -113,8 +97,6 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!response.ok) {
     const problem = (await response.json().catch(() => undefined)) as ProblemDetails | undefined;
 
-    // A 401 here means the grant died between middleware and this call — send the user to
-    // sign in rather than rendering an error page they can do nothing with.
     if (response.status === 401) redirect('/login');
 
     throw new ApiError(response.status, messageFor(problem, response.status), problem);

@@ -108,8 +108,8 @@ times, replay a spent token, and sign the admin out at random. `refreshTokens()`
 and keeps it briefly after settling so a request still carrying the old cookie joins it
 rather than redeeming the spent token itself.
 
-Refreshing happens in [middleware](web/src/middleware.ts), not during render: Next.js only
-allows writing cookies from middleware, Route Handlers and Server Actions, so a refresh at
+Refreshing happens in [the proxy](web/src/proxy.ts), not during render: Next.js only
+allows writing cookies from the proxy, Route Handlers and Server Actions, so a refresh at
 render time would rotate the token with nowhere to store it.
 
 Non-admins are refused at sign-in rather than being let in to hit a 403 on every page. That
