@@ -43,27 +43,17 @@ dotnet run --project src/DeBoetAPI
 
 All routes are under `/api/v1`. Full schema at `/scalar/v1` can be checked whenever running the application
 
-
-### Login
-
-`POST /auth/login` accepts **either an email address or a username** in its `email` field
-
 ### Token handling
 
 Access tokens live 15 minutes, refresh tokens 30 days. Tokens are returned in the response
-body — not cookies — so a browser SPA and a native app consume the same endpoints. Store the
+body — not cookies — so a browser SPA and a native app consume the same endpoints. Stores the
 access token in memory (web) or Keychain/Keystore (mobile).
-
-Refresh is **rotating**: each call revokes the presented token and issues a new one. Replaying
-an already-used refresh token is treated as a leak and revokes that user's entire active
-chain, forcing re-login.
 
 ## API docs
 
 `GET /openapi/v1.json` and the Scalar UI at `/scalar/v1`. On by default in Development;
 elsewhere controlled by `OpenApi:Enabled` / `OPENAPI_ENABLED` — deliberately not tied to the
 environment, so docs can be on in Production without developer exception pages coming too.
-
 
 ## Users, roles and passwords
 
@@ -106,35 +96,13 @@ and an initial password and hands it to the new user directly.
 
 ### The forced password change
 
-Any password an administrator sets — at creation or at reset — is temporary. The account
-carries `MustChangePassword` until the user replaces it via `POST /auth/change-password`.
-
-This is enforced by the **API**, not just the panel: while the flag is set the access token
-carries a `must_change_password` claim, and both the `Admin` and `Editor` policies refuse it.
-Such a token can do exactly three things — log in, read `/auth/me`, and change the password.
-
-Changing or resetting a password revokes every refresh token for that account, so sessions
-elsewhere die.
-
-> **Known limit.** Revoking refresh tokens does not invalidate an access token that has
-> already been issued, so a reset (or a role change) takes up to `Jwt:AccessTokenMinutes` —
-> 15 by default — to be felt everywhere. Shorten that value if the window matters to you.
-
-### Locking someone out
-
-`POST /api/v1/users/{id}/disable` and `/enable` use Identity's lockout, so a departing editor
-can be cut off without deleting an account the audit trail still points at. An admin cannot
-disable themselves or strip their own `Admin` role — on a single-admin install that would lock
-everyone out.
-
-Every one of these actions is written to the change history with who did it and when. Passwords
-are never recorded, not even in the summary.
+Any password an administrator sets at creation or at reset — is temporary. 
+The user would have to set up a new password on the initial login
 
 ## Admin panel
 
 A Next.js app in [web/](web/) for managing the category tree, the accounts that may edit it,
 and the change history.
-Runs as its own container beside the API; Caddy serves it on `ADMIN_DOMAIN`.
 
 ```bash
 cd web
@@ -146,30 +114,6 @@ npm run dev                    # needs Node 20+
 Each category's route in the tree links to its live page on `SITE_URL`
 (`https://www.deboet.nl` by default). It is read on the server and passed down, so pointing the
 panel at staging is an environment change rather than a rebuild.
-
-### Tokens never reach the browser
-
-The panel is a **backend-for-frontend**. Signing in posts to the panel's own server, which
-exchanges credentials with the API and seals the JWT pair into an encrypted, `httpOnly`
-cookie. Every API call is then made server-side, from a Server Component or a Server Action.
-The browser only ever holds an opaque cookie, so a script injected into the page has nothing
-to steal — and since the container reaches the API at `http://api:8080` over the compose
-network, CORS never applies and requests never leave the host.
-
-**Refreshing is serialised, and must stay that way.** Access tokens last 15 minutes and
-refresh tokens rotate; presenting a consumed refresh token makes the API revoke the user's
-entire chain. A dashboard issuing several requests at once would otherwise refresh several
-times, replay a spent token, and sign the admin out at random. `refreshTokens()` in
-[web/src/lib/api.ts](web/src/lib/api.ts) therefore shares one in-flight promise per token,
-and keeps it briefly after settling so a request still carrying the old cookie joins it
-rather than redeeming the spent token itself.
-
-Refreshing happens in [the proxy](web/src/proxy.ts), not during render: Next.js only
-allows writing cookies from the proxy, Route Handlers and Server Actions, so a refresh at
-render time would rotate the token with nowhere to store it.
-
-Non-admins are refused at sign-in rather than being let in to hit a 403 on every page. That
-is a UX gate only — the API enforces the real check.
 
 ### Types come from the API
 
@@ -243,7 +187,6 @@ then run `docker compose up -d` once to create the containers. After that, the G
 **GitHub secrets**
 `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_DIR`, held in the
 Github environment, if you wanna change it. the dockerfile requests the secrets to be in the environment variable named 'OVHCloud'.
-
 
 ### TLS
 
