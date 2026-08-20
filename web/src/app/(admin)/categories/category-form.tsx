@@ -83,7 +83,7 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
 
           <TextInput
             label="Meta title"
-            description="Falls back to the name when blank."
+            description="Optional. Left blank, the category publishes no meta title."
             {...form.getInputProps('metaTitle')}
           />
           <Textarea

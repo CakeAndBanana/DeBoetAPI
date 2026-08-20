@@ -448,7 +448,7 @@ export interface components {
             name: string;
             slug: string;
             pathSlug: string;
-            metaTitle: string;
+            metaTitle: null | string;
             metaDescription: null | string;
             /** Format: int32 */
             depth: number | string;
@@ -464,7 +464,7 @@ export interface components {
             name: string;
             slug: string;
             pathSlug: string;
-            metaTitle: string;
+            metaTitle: null | string;
             metaDescription: null | string;
             /** Format: uuid */
             parentId: null | string;

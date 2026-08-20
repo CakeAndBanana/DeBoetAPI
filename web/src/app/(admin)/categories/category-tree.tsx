@@ -145,8 +145,8 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
           mt="sm"
           style={{
             borderStyle: 'dashed',
-            borderColor: dropTarget === null ? 'var(--mantine-color-blue-5)' : undefined,
-            background: dropTarget === null ? 'var(--mantine-color-blue-light)' : undefined,
+            borderColor: dropTarget === null ? 'var(--mantine-color-teal-5)' : undefined,
+            background: dropTarget === null ? 'var(--mantine-color-teal-light)' : undefined,
           }}
           onDragOver={(e) => { e.preventDefault(); setDropTarget(null); }}
           onDrop={(e) => { e.preventDefault(); drop(null); }}
@@ -241,6 +241,15 @@ function Branch(props: BranchProps) {
   const isValidTarget = dragged !== null && canDrop(nodes, dragged, node.id);
   const isHovered = dropTarget === node.id && isValidTarget;
 
+  // The two publishing flags, read off the border. Both off is its own colour rather than
+  // one winning, because "not live and not navigable" is a different situation from either
+  // alone. The badges below carry the same information in words, so nothing is colour-only.
+  const stateColour =
+    !node.isActive && !node.isMenu ? 'var(--mantine-color-violet-5)'
+      : !node.isActive ? 'var(--mantine-color-red-4)'
+        : !node.isMenu ? 'var(--mantine-color-blue-5)'
+          : undefined;
+
   return (
     <>
       <Card
@@ -269,12 +278,10 @@ function Branch(props: BranchProps) {
         style={{
           opacity: isDragging ? 0.4 : 1,
           cursor: 'grab',
-          borderColor: isHovered
-            ? 'var(--mantine-color-blue-5)'
-            : node.isActive
-              ? undefined
-              : 'var(--mantine-color-red-4)',
-          background: isHovered ? 'var(--mantine-color-blue-light)' : undefined,
+          // Teal, not blue: blue now means "off menu", and a drop target has to stay
+          // legible against a tree full of them mid-drag.
+          borderColor: isHovered ? 'var(--mantine-color-teal-5)' : stateColour,
+          background: isHovered ? 'var(--mantine-color-teal-light)' : undefined,
         }}
       >
         <Group justify="space-between" wrap="nowrap" gap="md">
@@ -310,7 +317,7 @@ function Branch(props: BranchProps) {
             </Tooltip>
 
             {!node.isActive && <Badge color="red" size="sm">inactive</Badge>}
-            {!node.isMenu && <Badge color="yellow" size="sm">off menu</Badge>}
+            {!node.isMenu && <Badge color="blue" size="sm">off menu</Badge>}
             {hasChildren && isCollapsed && (
               <Badge color="gray" variant="light" size="sm">
                 {hiddenCount} hidden
@@ -318,22 +325,26 @@ function Branch(props: BranchProps) {
             )}
           </Group>
 
-          <Box style={{ flex: 1, minWidth: 0 }}>
-            <Text size="xs" truncate title={node.metaTitle}>
-              <Text span size="xs" c="dimmed">Meta title&ensp;</Text>
-              {node.metaTitle}
-            </Text>
-            <Text
-              size="xs"
-              truncate
-              c={node.metaDescription ? undefined : 'dimmed'}
-              fs={node.metaDescription ? undefined : 'italic'}
-              title={node.metaDescription ?? undefined}
-            >
-              <Text span size="xs" c="dimmed" fs="normal">Meta desc&ensp;</Text>
-              {node.metaDescription ?? 'none'}
-            </Text>
-          </Box>
+          {/*
+            Only what has actually been filled in. Neither meta field falls back to the name,
+            so a category with neither gets no block rather than a row of empty labels.
+          */}
+          {(node.metaTitle || node.metaDescription) && (
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              {node.metaTitle && (
+                <Text size="xs" truncate title={node.metaTitle}>
+                  <Text span size="xs" c="dimmed">Meta title&ensp;</Text>
+                  {node.metaTitle}
+                </Text>
+              )}
+              {node.metaDescription && (
+                <Text size="xs" truncate title={node.metaDescription}>
+                  <Text span size="xs" c="dimmed">Meta desc&ensp;</Text>
+                  {node.metaDescription}
+                </Text>
+              )}
+            </Box>
+          )}
 
           {/* draggable={false} so pressing a button never starts a drag. */}
           <Group gap={4} wrap="nowrap" draggable={false} onDragStart={(e) => e.preventDefault()}>

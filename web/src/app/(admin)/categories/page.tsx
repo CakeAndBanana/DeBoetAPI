@@ -1,4 +1,4 @@
-import { Stack, Text, Title } from '@mantine/core';
+import { Stack, Title } from '@mantine/core';
 import { flatten, getTree } from '@/lib/categories';
 import { CategoryTree } from './category-tree';
 
@@ -9,11 +9,7 @@ export default async function CategoriesPage() {
   return (
     <Stack>
       <div>
-        <Title order={2}>Categories</Title>
-        <Text c="dimmed" size="sm">
-          One main parent sets each category&apos;s route; secondary links let it appear
-          elsewhere without being duplicated.
-        </Text>
+        <Title order={2}>Categories Management</Title>
       </div>
 
       <CategoryTree

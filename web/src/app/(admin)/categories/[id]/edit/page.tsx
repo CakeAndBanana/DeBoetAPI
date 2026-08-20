@@ -27,10 +27,8 @@ export default async function EditCategoryPage({
         hasChildren={detail.children.length > 0}
         initial={{
           name: detail.category.name,
-          metaTitle: detail.category.metaTitle,
+          metaTitle: detail.category.metaTitle ?? '',
           metaDescription: detail.category.metaDescription ?? '',
-          // The spec types integers as number|string because the API accepts either on the
-          // way in. Responses are always numbers, so this normalises rather than trusting it.
           sortOrder: Number(detail.category.sortOrder),
           isActive: detail.category.isActive,
           isMenu: detail.category.isMenu,

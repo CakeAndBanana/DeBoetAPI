@@ -73,7 +73,10 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             Name = name,
             Slug = finalSlug,
             PathSlug = pathSlug,
-            MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? name : metaTitle,
+            // Blank stays blank. A meta title that merely repeats the name tells a search
+            // engine nothing it cannot already read from the page, so there is no fallback —
+            // same reasoning as MetaDescription below.
+            MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? null : metaTitle,
             MetaDescription = metaDescription,
             ParentId = parentId,
             SortOrder = sortOrder,
@@ -129,7 +132,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         var summary = AuditLog.Diff(
             ("name", category.Name, name),
             ("slug", category.Slug, finalSlug),
-            ("metaTitle", category.MetaTitle, string.IsNullOrWhiteSpace(metaTitle) ? name : metaTitle),
+            ("metaTitle", category.MetaTitle, string.IsNullOrWhiteSpace(metaTitle) ? null : metaTitle),
             ("metaDescription", category.MetaDescription, metaDescription),
             ("sortOrder", category.SortOrder, sortOrder),
             ("isActive", category.IsActive, isActive),
@@ -140,9 +143,9 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         category.Name = name;
         category.Slug = finalSlug;
         category.PathSlug = newPathSlug;
-        category.MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? name : metaTitle;
-        // No fallback to Name here, matching CreateAsync: a one-word meta description is
-        // worse for SEO than none at all, and search engines synthesise a better snippet.
+        category.MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? null : metaTitle;
+        // Neither field falls back to Name: a one-word meta description is worse for SEO than
+        // none at all, and search engines synthesise a better snippet.
         category.MetaDescription = metaDescription;
         category.SortOrder = sortOrder;
         category.IsActive = isActive;

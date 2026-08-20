@@ -29,7 +29,7 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
     }
 
     [Fact]
-    public async Task Create_DerivesSlugAndMetaTitleFromName()
+    public async Task Create_DerivesTheSlugFromTheName()
     {
         var response = await Admin.PostAsJsonAsync("/api/v1/categories", new { name = $"Ice Lights {Guid.NewGuid():N}" });
         response.EnsureSuccessStatusCode();
@@ -41,7 +41,7 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
         Assert.DoesNotContain(' ', created.Slug);
         Assert.DoesNotContain('-', created.Slug);
         Assert.Equal(created.Slug, created.PathSlug); // a root's route is just its own segment
-        Assert.Equal(created.Name, created.MetaTitle);
+        Assert.Null(created.MetaTitle); // the slug is derived from the name; the meta title is not
         Assert.True(created.IsActive);
     }
 

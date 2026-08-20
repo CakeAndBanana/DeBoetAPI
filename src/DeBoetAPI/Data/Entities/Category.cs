@@ -29,7 +29,7 @@ public class Category
     /// <summary>
     /// Meta title for Search Engines. Not required, but if not provided, the <see cref="Name"/> will be used as the meta title.
     /// </summary>
-    public string? MetaTitle { get; set; } = string.Empty;
+    public string? MetaTitle { get; set; }
 
     /// <summary>
     /// Optional

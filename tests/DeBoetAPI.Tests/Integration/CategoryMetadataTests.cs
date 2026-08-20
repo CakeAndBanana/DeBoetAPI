@@ -25,30 +25,55 @@ public class CategoryMetadataTests(PostgresFixture postgres) : CategoryTestBase(
     }
 
     [Fact]
-    public async Task MetaTitle_FallsBackToNameButMetaDescriptionDoesNot()
+    public async Task NeitherMetaFieldFallsBackToTheName()
     {
-        // A one-word meta description is worse than none — search engines write a better
-        // snippet themselves — so only the title gets a fallback.
+        // Repeating the name in a meta title tells a search engine nothing the page does not
+        // already say, and a one-word meta description is worse than none — it writes a better
+        // snippet itself. Blank is stored as blank so the panel can show the field as unset.
         var response = await Admin.PostAsJsonAsync("/api/v1/categories",
             new { name = "Ice Lights", slug = UniqueSlug("icelights") });
         response.EnsureSuccessStatusCode();
         var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
 
-        Assert.Equal("Ice Lights", created.MetaTitle);
+        Assert.Null(created.MetaTitle);
         Assert.Null(created.MetaDescription);
     }
 
     [Fact]
-    public async Task Update_KeepsTheSameAsymmetry()
+    public async Task AMetaTitleOfWhitespaceIsStoredAsNull()
+    {
+        var response = await Admin.PostAsJsonAsync("/api/v1/categories",
+            new { name = "Blank Meta", slug = UniqueSlug("blankmeta"), metaTitle = "   " });
+        response.EnsureSuccessStatusCode();
+        var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
+
+        Assert.Null(created.MetaTitle);
+    }
+
+    [Fact]
+    public async Task Update_CanClearAMetaTitleThatWasSet()
     {
         var created = await CreateCategoryAsync("Christmas", slug: UniqueSlug("christmas"));
 
+        var withTitle = await Admin.PutAsJsonAsync($"/api/v1/categories/{created.Id}", new
+        {
+            name = "Christmas",
+            metaTitle = "Christmas at De Boet",
+            sortOrder = 0,
+            isActive = true,
+            isMenu = true,
+        });
+        withTitle.EnsureSuccessStatusCode();
+        Assert.Equal("Christmas at De Boet",
+            (await withTitle.Content.ReadFromJsonAsync<CategoryResponse>())!.MetaTitle);
+
+        // Sending it back empty clears it rather than reinstating the name.
         var response = await Admin.PutAsJsonAsync($"/api/v1/categories/{created.Id}",
-            new { name = "Christmas", sortOrder = 0, isActive = true, isMenu = true });
+            new { name = "Christmas", metaTitle = "", sortOrder = 0, isActive = true, isMenu = true });
         response.EnsureSuccessStatusCode();
         var updated = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
 
-        Assert.Equal("Christmas", updated.MetaTitle);
+        Assert.Null(updated.MetaTitle);
         Assert.Null(updated.MetaDescription);
     }
 

@@ -393,9 +393,7 @@ public static class CategoryEndpoints
             : db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.PathSlug == idOrSlug, ct);
 
     private static CategoryResponse ToResponse(Category c) => new(
-        // MetaTitle is nullable on the entity but the service always fills it; the coalesce
-        // covers rows written outside the API so clients never see a null title.
-        c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle ?? c.Name, c.MetaDescription, c.ParentId,
+        c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle, c.MetaDescription, c.ParentId,
         c.Depth, c.SortOrder, c.IsActive, c.IsMenu, c.CreatedById, c.UpdatedById,
         c.CreatedAt, c.UpdatedAt);
 
@@ -420,7 +418,7 @@ public static class CategoryEndpoints
         CategoryNode Build(Category c)
         {
             return new(
-            c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle ?? c.Name, c.MetaDescription,
+            c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle, c.MetaDescription,
             c.Depth, c.SortOrder, c.IsActive, c.IsMenu,
             childrenByParent.TryGetValue(c.Id, out var kids)
                 ? kids.Select(Build).ToList()
