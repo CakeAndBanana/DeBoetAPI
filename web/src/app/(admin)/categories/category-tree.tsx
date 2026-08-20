@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
-  ActionIcon, Badge, Box, Button, Card, Code, Group, Modal, Paper, Stack, Text, Tooltip,
+  ActionIcon, Anchor, Badge, Box, Button, Card, Code, Group, Modal, Paper, Stack, Text, Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -20,9 +20,10 @@ const COLLAPSED_KEY = 'deboet.collapsedCategories';
 interface Props {
   nodes: CategoryNode[];
   options: CategoryOption[];
+  siteUrl: string;
 }
 
-export function CategoryTree({ nodes, options }: Props) {
+export function CategoryTree({ nodes, options, siteUrl }: Props) {
   const [moving, setMoving] = useState<CategoryNode | null>(null);
   const [deleting, setDeleting] = useState<CategoryNode | null>(null);
   const [newParent, setNewParent] = useState<string | null>(null);
@@ -31,15 +32,10 @@ export function CategoryTree({ nodes, options }: Props) {
     : undefined;
   const [pending, startTransition] = useTransition();
 
-  // Remembered because the whole tree re-renders after every mutation; without this,
-  // saving an edit would silently expand everything again.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [dragged, setDragged] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null | undefined>(undefined);
 
-  // Read on mount rather than during render, so server and client markup match. Seeding the
-  // state initialiser instead would make the first client render disagree with the server's,
-  // which is the mismatch this effect exists to avoid — so the lint rule is waived here.
   useEffect(() => {
     try {
       const stored = localStorage.getItem(COLLAPSED_KEY);
@@ -136,6 +132,7 @@ export function CategoryTree({ nodes, options }: Props) {
             onDrop={drop}
             onMove={(n) => { setMoving(n); setNewParent(null); }}
             onDelete={setDeleting}
+            siteUrl={siteUrl}
           />
         ))}
       </Stack>
@@ -229,10 +226,11 @@ interface BranchProps {
   onDrop: (id: string) => void;
   onMove: (n: CategoryNode) => void;
   onDelete: (n: CategoryNode) => void;
+  siteUrl: string;
 }
 
 function Branch(props: BranchProps) {
-  const { node, depth, nodes, collapsed, onToggle, dragged, dropTarget} = props;
+  const { node, depth, nodes, collapsed, onToggle, dragged, dropTarget, siteUrl } = props;
 
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
@@ -297,7 +295,19 @@ function Branch(props: BranchProps) {
             )}
 
             <Text fw={500} c={node.isActive ? undefined : 'red'}>{node.name}</Text>
-            <Code>{node.pathSlug}</Code>
+            <Tooltip label={`${siteUrl}/${node.pathSlug}`}>
+              <Anchor
+                href={`${siteUrl}/${node.pathSlug}`}
+                target="_blank"
+                rel="noreferrer"
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
+                onClick={(e) => e.stopPropagation()}
+                underline="always"
+              >
+                <Code>{node.pathSlug}</Code>
+              </Anchor>
+            </Tooltip>
 
             {!node.isActive && <Badge color="red" size="sm">inactive</Badge>}
             {!node.isMenu && <Badge color="yellow" size="sm">off menu</Badge>}
@@ -308,15 +318,9 @@ function Branch(props: BranchProps) {
             )}
           </Group>
 
-          {/*
-            The SEO fields, between the name and the actions, so they can be scanned down the
-            tree without opening each editor. minWidth 0 lets this column be the one that
-            shrinks when the row is tight, and both lines truncate — a meta description runs
-            to 2000 characters. The full text is on the title attribute.
-          */}
           <Box style={{ flex: 1, minWidth: 0 }}>
             <Text size="xs" truncate title={node.metaTitle}>
-              <Text span size="xs" c="dimmed">title&ensp;</Text>
+              <Text span size="xs" c="dimmed">Meta title&ensp;</Text>
               {node.metaTitle}
             </Text>
             <Text
@@ -326,7 +330,7 @@ function Branch(props: BranchProps) {
               fs={node.metaDescription ? undefined : 'italic'}
               title={node.metaDescription ?? undefined}
             >
-              <Text span size="xs" c="dimmed" fs="normal">desc&ensp;</Text>
+              <Text span size="xs" c="dimmed" fs="normal">Meta desc&ensp;</Text>
               {node.metaDescription ?? 'none'}
             </Text>
           </Box>

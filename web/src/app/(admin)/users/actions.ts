@@ -16,8 +16,6 @@ async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
     revalidatePath('/audit');
     return { ok: true };
   } catch (error) {
-    // The API's wording is already specific ("You cannot remove your own Admin role."), so it
-    // is surfaced rather than replaced.
     if (error instanceof ApiError) return { ok: false, message: error.message };
     return { ok: false, message: 'Something went wrong talking to the API.' };
   }

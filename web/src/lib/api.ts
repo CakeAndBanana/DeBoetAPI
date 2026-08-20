@@ -18,7 +18,16 @@ export interface TokenPair {
 }
 
 export async function getSession() {
-  return getIronSession<AdminSession>(await cookies(), sessionOptions());
+  const session = await getIronSession<AdminSession>(await cookies(), sessionOptions());
+
+  // Backfilled in memory as well as in the proxy, because the proxy's `session.save()` only
+  // writes a cookie onto the *response* — this render still reads the one that arrived. Without
+  // this the first page load after an upgrade would show an administrator as an editor and turn
+  // them away from /users, correcting itself only on the next navigation. Read-only: a Server
+  // Component may not write cookies, so the proxy is what makes it stick.
+  syncClaims(session);
+
+  return session;
 }
 
 const inFlight = new Map<string, Promise<TokenPair | null>>();
@@ -60,6 +69,23 @@ export function applyTokens(session: AdminSession, tokens: TokenPair): void {
   session.roles = rolesFrom(tokens.accessToken);
   session.mustChangePassword = mustChangePassword(tokens.accessToken);
   session.userId = subjectFrom(tokens.accessToken);
+}
+
+/**
+ * Re-derives the claim-backed fields from the access token the session already holds.
+ *
+ * Needed because a session sealed by an older build carries tokens but no `roles`, and
+ * `isAdmin` would then quietly report false — an administrator labelled an editor and turned
+ * away from their own /users screen until the token happened to expire. The token is right
+ * there and says who they are, so read it rather than wait.
+ */
+export function syncClaims(session: AdminSession): boolean {
+  if (!session.accessToken || session.roles !== undefined) return false;
+
+  session.roles = rolesFrom(session.accessToken);
+  session.mustChangePassword = mustChangePassword(session.accessToken);
+  session.userId = subjectFrom(session.accessToken);
+  return true;
 }
 
 export function isAdmin(session: AdminSession): boolean {

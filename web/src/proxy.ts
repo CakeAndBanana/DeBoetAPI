@@ -1,6 +1,6 @@
 import { getIronSession } from 'iron-session';
 import { NextResponse, type NextRequest } from 'next/server';
-import { applyTokens, isExpiring, refreshTokens } from '@/lib/api';
+import { applyTokens, isExpiring, refreshTokens, syncClaims } from '@/lib/api';
 import { sessionOptions, type AdminSession } from '@/lib/session';
 
 /**
@@ -37,6 +37,11 @@ export async function proxy(request: NextRequest) {
     }
 
     applyTokens(session, tokens);
+    await session.save();
+  } else if (syncClaims(session)) {
+    // A session sealed before roles were stored. Backfilling here means the very next page
+    // knows who it is, instead of the header and the nav disagreeing with the API for as
+    // long as the access token stays fresh.
     await session.save();
   }
 

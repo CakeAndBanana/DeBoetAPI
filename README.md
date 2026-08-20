@@ -138,10 +138,14 @@ Runs as its own container beside the API; Caddy serves it on `ADMIN_DOMAIN`.
 
 ```bash
 cd web
-cp .env.example .env.local     # API_BASE_URL + a 32-char SESSION_SECRET
+cp .env.example .env.local     # API_BASE_URL, a 32-char SESSION_SECRET, SITE_URL
 npm install
 npm run dev                    # needs Node 20+
 ```
+
+Each category's route in the tree links to its live page on `SITE_URL`
+(`https://www.deboet.nl` by default). It is read on the server and passed down, so pointing the
+panel at staging is an environment change rather than a rebuild.
 
 ### Tokens never reach the browser
 

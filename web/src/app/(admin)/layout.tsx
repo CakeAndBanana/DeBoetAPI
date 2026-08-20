@@ -21,7 +21,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Group gap="sm">
             <Text size="sm" c="dimmed">
               {session.displayName ?? 'signed in'}
-              {isAdmin(session) ? ' (admin)' : ' (editor)'}
+              {/* The roles as they actually are. Printing "editor" for anything that is not
+                  admin would misreport a session whose roles have not been read yet. */}
+              {session.roles?.length ? ` (${session.roles.join(', ').toLowerCase()})` : ''}
             </Text>
             {/* component="a", not component={Link}: a Server Component may not pass a
                 function prop to a client component like Button. */}

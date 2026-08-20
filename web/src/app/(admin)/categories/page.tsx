@@ -16,7 +16,11 @@ export default async function CategoriesPage() {
         </Text>
       </div>
 
-      <CategoryTree nodes={tree} options={options} />
+      <CategoryTree
+        nodes={tree}
+        options={options}
+        siteUrl={process.env.SITE_URL ?? 'https://www.deboet.nl'}
+      />
     </Stack>
   );
 }
