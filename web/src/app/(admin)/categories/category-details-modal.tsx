@@ -6,6 +6,7 @@ import {
   Alert, Anchor, Badge, Breadcrumbs, Button, Code, Divider, Group, Loader, Modal, Stack, Text,
 } from '@mantine/core';
 import { IconExternalLink, IconHistory, IconPencil } from '@tabler/icons-react';
+import { useT } from '@/i18n/client';
 import { categoryDetails, type CategoryDetails } from './actions';
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function CategoryDetailsModal({ categoryId, categoryName, siteUrl, onClose }: Props) {
+  const t = useT();
   type Loaded = { status: 'error'; message: string } | { status: 'ready'; details: CategoryDetails };
   const [loaded, setLoaded] = useState<{ id: string; result: Loaded } | null>(null);
 
@@ -37,13 +39,13 @@ export function CategoryDetailsModal({ categoryId, categoryName, siteUrl, onClos
       }),
       () => current && setLoaded({
         id: categoryId,
-        result: { status: 'error', message: 'Could not load this category.' },
+        result: { status: 'error', message: t('details.loadFailedBody') },
       }),
     );
 
     // Guards against a stale response landing after the user has opened a different category.
     return () => { current = false; };
-  }, [categoryId]);
+  }, [categoryId, t]);
 
   // Derived rather than stored, so opening a second category cannot show the first one's
   // record for a frame while the new request is in flight.
@@ -56,7 +58,7 @@ export function CategoryDetailsModal({ categoryId, categoryName, siteUrl, onClos
         <Group justify="center" py="xl"><Loader size="sm" /></Group>
       )}
 
-      {state.status === 'error' && <Alert color="red" title="Could not load">{state.message}</Alert>}
+      {state.status === 'error' && <Alert color="red" title={t('details.loadFailed')}>{state.message}</Alert>}
 
       {state.status === 'ready' && <Details details={state.details} siteUrl={siteUrl} onClose={onClose} />}
     </Modal>
@@ -70,11 +72,12 @@ function Details({
   siteUrl: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const url = `${siteUrl}/${details.pathSlug}`;
 
   return (
     <Stack gap="md">
-      <Field label="Where it sits">
+      <Field label={t('details.where')}>
         <Breadcrumbs separator="›" styles={{ separator: { marginInline: 6 } }}>
           {details.trail.map((c, i) => (
             <Text key={c.id} size="sm" fw={i === details.trail.length - 1 ? 600 : 400}>
@@ -83,40 +86,40 @@ function Details({
           ))}
         </Breadcrumbs>
         {details.trail.length === 1 && (
-          <Text size="xs" c="dimmed">A root category.</Text>
+          <Text size="xs" c="dimmed">{t('details.root')}</Text>
         )}
       </Field>
 
-      <Field label="Address">
+      <Field label={t('details.address')}>
         <Anchor href={url} target="_blank" rel="noreferrer" size="sm">
           <Group gap={4} wrap="nowrap">
             <Code>{details.pathSlug}</Code>
             <IconExternalLink size={14} />
           </Group>
         </Anchor>
-        <Text size="xs" c="dimmed">
-          Own segment <Code>{details.slug}</Code>, prefixed by every ancestor.
-        </Text>
+        <Text size="xs" c="dimmed">{t('details.addressHelp', { slug: details.slug })}</Text>
       </Field>
 
-      <Field label="State">
+      <Field label={t('details.state')}>
         <Group gap="xs">
           <Badge color={details.isActive ? 'green' : 'red'} size="sm">
-            {details.isActive ? 'active' : 'inactive'}
+            {details.isActive ? t('details.active') : t('details.inactive')}
           </Badge>
           <Badge color={details.isMenu ? 'green' : 'blue'} size="sm">
-            {details.isMenu ? 'in menu' : 'off menu'}
+            {details.isMenu ? t('details.inMenu') : t('details.offMenu')}
           </Badge>
           <Text size="sm" c="dimmed">
             {details.childCount === 0
-              ? 'no child categories'
-              : `${details.childCount} child ${details.childCount === 1 ? 'category' : 'categories'}`}
+              ? t('details.noChildren')
+              : details.childCount === 1
+                ? t('details.childCountOne')
+                : t('details.childCount', { count: details.childCount })}
           </Text>
         </Group>
       </Field>
 
       {details.secondaryParents.length > 0 && (
-        <Field label="Also appears under">
+        <Field label={t('details.alsoUnder')}>
           <Stack gap={2}>
             {details.secondaryParents.map((p) => (
               <Text key={p.id} size="sm">
@@ -129,13 +132,13 @@ function Details({
 
       <Divider />
 
-      <Field label="Meta title">
+      <Field label={t('categories.fieldMetaTitle')}>
         {details.metaTitle
           ? <Text size="sm">{details.metaTitle}</Text>
           : <Text size="sm" c="dimmed" fs="italic">Not set</Text>}
       </Field>
 
-      <Field label="Meta description">
+      <Field label={t('categories.fieldMetaDesc')}>
         {details.metaDescription
           ? <Text size="sm">{details.metaDescription}</Text>
           : <Text size="sm" c="dimmed" fs="italic">Not set</Text>}
@@ -143,17 +146,17 @@ function Details({
 
       <Divider />
 
-      <Field label="Created">
+      <Field label={t('details.created')}>
         <Text size="sm">
           {formatWhen(details.createdAt)}
-          {details.createdBy && <> by <strong>{details.createdBy}</strong></>}
+          {details.createdBy && <> {t('details.by')} <strong>{details.createdBy}</strong></>}
         </Text>
       </Field>
 
-      <Field label="Last edited">
+      <Field label={t('details.lastEdited')}>
         <Text size="sm">
           {formatWhen(details.updatedAt)}
-          {details.updatedBy && <> by <strong>{details.updatedBy}</strong></>}
+          {details.updatedBy && <> {t('details.by')} <strong>{details.updatedBy}</strong></>}
         </Text>
         {details.lastAction && (
           <Text size="xs" c="dimmed">
@@ -162,9 +165,7 @@ function Details({
           </Text>
         )}
         {details.changeCount === null && (
-          <Text size="xs" c="dimmed" fs="italic">
-            Your account cannot read the change history, so no names are shown.
-          </Text>
+          <Text size="xs" c="dimmed" fs="italic">{t('details.noHistoryAccess')}</Text>
         )}
       </Field>
 
@@ -176,7 +177,7 @@ function Details({
           leftSection={<IconHistory size={16} />}
           onClick={onClose}
         >
-          Full history
+          {t('details.fullHistory')}
         </Button>
         <Button
           component={Link}
@@ -184,7 +185,7 @@ function Details({
           leftSection={<IconPencil size={16} />}
           onClick={onClose}
         >
-          Edit
+          {t('common.edit')}
         </Button>
       </Group>
     </Stack>

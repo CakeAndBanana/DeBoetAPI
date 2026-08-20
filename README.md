@@ -115,6 +115,38 @@ Each category's route in the tree links to its live page on `SITE_URL`
 (`https://www.deboet.nl` by default). It is read on the server and passed down, so pointing the
 panel at staging is an environment change rather than a rebuild.
 
+### Adding a language
+
+The panel's interface is translated from one file per language in
+[web/src/i18n/locales/](web/src/i18n/locales/). To add one:
+
+1. Copy `en.json` to `<code>.json` — `de.json`, `fr.json` — and translate the **values**,
+   leaving every key exactly as it is. `{placeholders}` are filled in at render time, so keep
+   them where they are.
+2. Register it in [web/src/i18n/index.ts](web/src/i18n/index.ts):
+
+   ```ts
+   import de from './locales/de.json';
+
+   export const LOCALES = {
+     en: { label: 'English', dictionary: en },
+     nl: { label: 'Nederlands', dictionary: nl },
+     de: { label: 'Deutsch', dictionary: de },
+   } as const;
+   ```
+
+That is the whole procedure; the picker in the header lists it automatically. The registry is
+explicit rather than a directory scan because the bundler has to see each import to include the
+file in the build.
+
+English is the source of truth: it types the key list, so a mistyped key fails `npm run
+typecheck`, and a key missing from another language falls back to English rather than rendering
+blank. The choice is remembered in a `deboet_locale` cookie, which is why `/login` is rendered
+per request instead of prerendered.
+
+Only the interface is translated. Category names and meta fields are stored once, in whatever
+language they were written in.
+
 ### Types come from the API
 
 ```bash

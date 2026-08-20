@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using DeBoetAPI.Common;
 using DeBoetAPI.Data;
@@ -46,36 +47,73 @@ public static class AuditEndpoints
         return app;
     }
 
-    private static async Task<Ok<PagedResult<AuditEntryResponse>>> ListAsync(
+    /// <summary>
+    /// Every filter arrives as a string and is parsed here rather than bound directly.
+    /// Minimal APIs answer a query string they cannot bind with a 500, and these values come
+    /// straight off a URL somebody can edit — a typo deserves "that is not a record type",
+    /// not an internal error.
+    /// </summary>
+    private static async Task<Results<Ok<PagedResult<AuditEntryResponse>>, ProblemHttpResult>> ListAsync(
         AppDbContext db,
         CancellationToken ct,
-        AuditedEntityType? entityType = null,
-        Guid? entityId = null,
-        Guid? changedById = null,
-        DateTimeOffset? since = null,
+        string? entityType = null,
+        string? action = null,
+        string? entityId = null,
+        string? changedById = null,
+        string? since = null,
         int? page = null,
         int? pageSize = null)
     {
+        if (!TryParse<AuditedEntityType>(entityType, out var type))
+        {
+            return BadFilter("entityType", entityType);
+        }
+
+        if (!TryParse<AuditAction>(action, out var auditAction))
+        {
+            return BadFilter("action", action);
+        }
+
+        if (!TryParseGuid(entityId, out var entity))
+        {
+            return BadFilter("entityId", entityId);
+        }
+
+        if (!TryParseGuid(changedById, out var actor))
+        {
+            return BadFilter("changedById", changedById);
+        }
+
+        if (!TryParseInstant(since, out var from))
+        {
+            return BadFilter("since", since);
+        }
+
         var query = db.AuditEntries.AsNoTracking();
 
-        if (entityType is not null)
+        if (type is not null)
         {
-            query = query.Where(a => a.EntityType == entityType);
+            query = query.Where(a => a.EntityType == type);
         }
 
-        if (entityId is not null)
+        if (auditAction is not null)
         {
-            query = query.Where(a => a.EntityId == entityId);
+            query = query.Where(a => a.Action == auditAction);
         }
 
-        if (changedById is not null)
+        if (entity is not null)
         {
-            query = query.Where(a => a.ChangedById == changedById);
+            query = query.Where(a => a.EntityId == entity);
         }
 
-        if (since is not null)
+        if (actor is not null)
         {
-            query = query.Where(a => a.ChangedAt >= since);
+            query = query.Where(a => a.ChangedById == actor);
+        }
+
+        if (from is not null)
+        {
+            query = query.Where(a => a.ChangedAt >= from);
         }
 
         return TypedResults.Ok(await PageAsync(query, page, pageSize, ct));
@@ -113,6 +151,46 @@ public static class AuditEndpoints
 
         return TypedResults.Ok(await PageAsync(query, page, pageSize, ct));
     }
+
+    /// <summary>Absent is fine; present but unparseable is not.</summary>
+    private static bool TryParse<T>(string? value, out T? parsed) where T : struct, Enum
+    {
+        parsed = null;
+        if (string.IsNullOrWhiteSpace(value)) return true;
+
+        if (!Enum.TryParse<T>(value, ignoreCase: true, out var result)) return false;
+
+        parsed = result;
+        return true;
+    }
+
+    private static bool TryParseGuid(string? value, out Guid? parsed)
+    {
+        parsed = null;
+        if (string.IsNullOrWhiteSpace(value)) return true;
+
+        if (!Guid.TryParse(value, out var result)) return false;
+
+        parsed = result;
+        return true;
+    }
+
+    private static bool TryParseInstant(string? value, out DateTimeOffset? parsed)
+    {
+        parsed = null;
+        if (string.IsNullOrWhiteSpace(value)) return true;
+
+        if (!DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal, out var result)) return false;
+
+        parsed = result;
+        return true;
+    }
+
+    private static ProblemHttpResult BadFilter(string name, string? value) =>
+        TypedResults.Problem(
+            $"'{value}' is not a valid value for {name}.",
+            statusCode: StatusCodes.Status400BadRequest);
 
     private static async Task<PagedResult<AuditEntryResponse>> PageAsync(
         IQueryable<AuditEntry> query,

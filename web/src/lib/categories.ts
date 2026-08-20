@@ -35,6 +35,7 @@ export function getCategoryHistory(id: string) {
 
 export interface AuditFilters {
   entityType?: string;
+  action?: string;
   changedById?: string;
   page?: number;
 }
@@ -42,6 +43,7 @@ export interface AuditFilters {
 export function getAudit(filters: AuditFilters = {}) {
   const params = new URLSearchParams({ pageSize: '50' });
   if (filters.entityType) params.set('entityType', filters.entityType);
+  if (filters.action) params.set('action', filters.action);
   if (filters.changedById) params.set('changedById', filters.changedById);
   if (filters.page) params.set('page', String(filters.page));
 

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using DeBoetAPI.Features.Audit;
+using DeBoetAPI.Features.Auth;
+using DeBoetAPI.Features.Categories;
 using DeBoetAPI.Features.Items;
 
 namespace DeBoetAPI.Tests.Integration;
@@ -201,4 +203,79 @@ public class AuditTests(PostgresFixture postgres) : CategoryTestBase(postgres)
     }
 
     private sealed record PagedAudit(List<AuditEntryResponse> Items, int Page, int PageSize, int TotalCount);
+
+    [Fact]
+    public async Task Audit_FiltersByAction()
+    {
+        var category = await CreateCategoryAsync("Filtered", slug: UniqueSlug("filtered"));
+        await Admin.PutAsJsonAsync($"/api/v1/categories/{category.Id}",
+            new { name = "Filtered Twice", sortOrder = 0, isActive = true, isMenu = true });
+
+        var created = await Admin.GetFromJsonAsync<PagedAudit>(
+            $"/api/v1/audit?entityId={category.Id}&action=Created");
+        var updated = await Admin.GetFromJsonAsync<PagedAudit>(
+            $"/api/v1/audit?entityId={category.Id}&action=Updated");
+
+        Assert.NotNull(created);
+        Assert.NotNull(updated);
+        Assert.All(created.Items, e => Assert.Equal("Created", e.Action));
+        Assert.All(updated.Items, e => Assert.Equal("Updated", e.Action));
+        Assert.Single(created.Items);
+        Assert.Single(updated.Items);
+    }
+
+    [Fact]
+    public async Task Audit_FiltersByPerson()
+    {
+        var (editor, editorId, _, _) = await CreateUserAndSignInAsync(AuthPolicies.EditorRole);
+        var response = await editor.PostAsJsonAsync("/api/v1/categories",
+            new { name = "By The Editor", slug = UniqueSlug("bytheeditor") });
+        response.EnsureSuccessStatusCode();
+
+        var theirs = await Admin.GetFromJsonAsync<PagedAudit>($"/api/v1/audit?changedById={editorId}");
+
+        Assert.NotNull(theirs);
+        Assert.NotEmpty(theirs.Items);
+        Assert.All(theirs.Items, e => Assert.Equal(editorId, e.ChangedById));
+    }
+
+    [Fact]
+    public async Task Audit_CombinesActionAndPerson()
+    {
+        var (editor, editorId, _, _) = await CreateUserAndSignInAsync(AuthPolicies.EditorRole);
+        var created = await editor.PostAsJsonAsync("/api/v1/categories",
+            new { name = "Both Filters", slug = UniqueSlug("bothfilters") });
+        created.EnsureSuccessStatusCode();
+        var category = (await created.Content.ReadFromJsonAsync<CategoryResponse>())!;
+
+        await editor.PutAsJsonAsync($"/api/v1/categories/{category.Id}",
+            new { name = "Both Filters Again", sortOrder = 0, isActive = true, isMenu = true });
+
+        var both = await Admin.GetFromJsonAsync<PagedAudit>(
+            $"/api/v1/audit?changedById={editorId}&action=Updated");
+
+        Assert.NotNull(both);
+        Assert.All(both.Items, e =>
+        {
+            Assert.Equal(editorId, e.ChangedById);
+            Assert.Equal("Updated", e.Action);
+        });
+        Assert.Contains(both.Items, e => e.EntityId == category.Id);
+    }
+
+    [Theory]
+    [InlineData("entityType=Nonsense")]
+    [InlineData("action=Nonsense")]
+    [InlineData("entityId=notauuid")]
+    [InlineData("changedById=notauuid")]
+    [InlineData("since=whenever")]
+    public async Task Audit_RejectsAnUnreadableFilterWithoutFailing(string query)
+    {
+        // These arrive straight off an editable URL, so a typo has to read as a bad request
+        // rather than an internal error.
+        var response = await Admin.GetAsync($"/api/v1/audit?{query}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
 }

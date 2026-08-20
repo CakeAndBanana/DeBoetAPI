@@ -4,6 +4,8 @@ import '@mantine/notifications/styles.css';
 import type { Metadata } from 'next';
 import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
+import { getLocale } from '@/i18n/server';
+import { LocaleProvider } from '@/i18n/client';
 
 export const metadata: Metadata = {
   title: 'DeBoet Admin',
@@ -11,16 +13,24 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * The locale is resolved here rather than in the admin layout so the login screen — which
+ * sits outside it — is translated too, and so `<html lang>` is right for the whole document.
+ */
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+
   return (
-    <html lang="en" {...mantineHtmlProps}>
+    <html lang={locale} {...mantineHtmlProps}>
       <head>
         <ColorSchemeScript defaultColorScheme="auto" />
       </head>
       <body>
         <MantineProvider defaultColorScheme="auto">
-          <Notifications position="top-right" />
-          {children}
+          <LocaleProvider locale={locale}>
+            <Notifications position="top-right" />
+            {children}
+          </LocaleProvider>
         </MantineProvider>
       </body>
     </html>

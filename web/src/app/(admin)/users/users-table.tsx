@@ -8,15 +8,21 @@ import {
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { IconKey, IconLock, IconLockOpen, IconPlus, IconUserCog } from '@tabler/icons-react';
+import { useT } from '@/i18n/client';
+import type { Translate } from '@/i18n';
+
+/** Role choices, described in the reader's language. */
+const roleOptions = (t: Translate) => [
+  { value: 'Admin', label: t('users.roleAdmin') },
+  { value: 'Editor', label: t('users.roleEditor') },
+];
 import type { ManagedUser } from './page';
 import { createUser, resetPassword, setEnabled, setRoles } from './actions';
 
-const ROLES = [
-  { value: 'Admin', label: 'Admin — everything, including users' },
-  { value: 'Editor', label: 'Editor — create and edit categories' },
-];
+
 
 export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; currentUserId: string }) {
+  const t = useT();
   const [creating, setCreating] = useState(false);
   const [resetting, setResetting] = useState<ManagedUser | null>(null);
   const [editingRoles, setEditingRoles] = useState<ManagedUser | null>(null);
@@ -24,10 +30,10 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
 
   function report(result: { ok: boolean; message?: string }, success: string, onDone?: () => void) {
     if (!result.ok) {
-      notifications.show({ color: 'red', title: 'Refused', message: result.message ?? 'Failed' });
+      notifications.show({ color: 'red', title: t('common.refused'), message: result.message ?? t('categories.failed') });
       return;
     }
-    notifications.show({ color: 'green', title: 'Done', message: success });
+    notifications.show({ color: 'green', title: t('common.done'), message: success });
     onDone?.();
   }
 
@@ -35,18 +41,18 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
     <>
       <Group>
         <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
-          New user
+          {t('users.new')}
         </Button>
       </Group>
 
       <Table striped highlightOnHover withTableBorder>
         <TableThead>
           <TableTr>
-            <TableTh>Username</TableTh>
-            <TableTh>Display name</TableTh>
-            <TableTh w={220}>Roles</TableTh>
-            <TableTh w={200}>State</TableTh>
-            <TableTh w={140}>Actions</TableTh>
+            <TableTh>{t('users.username')}</TableTh>
+            <TableTh>{t('users.displayName')}</TableTh>
+            <TableTh w={220}>{t('users.roles')}</TableTh>
+            <TableTh w={200}>{t('users.state')}</TableTh>
+            <TableTh w={140}>{t('users.actions')}</TableTh>
           </TableTr>
         </TableThead>
         <TableTbody>
@@ -62,7 +68,7 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
                 <TableTd><Text size="sm">{user.displayName}</Text></TableTd>
                 <TableTd>
                   <Group gap={4}>
-                    {user.roles.length === 0 && <Text size="xs" c="dimmed">no roles</Text>}
+                    {user.roles.length === 0 && <Text size="xs" c="dimmed">{t('users.noRoles')}</Text>}
                     {user.roles.map((role) => (
                       <Badge key={role} size="sm" color={role === 'Admin' ? 'grape' : 'blue'}>
                         {role}
@@ -72,26 +78,26 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
                 </TableTd>
                 <TableTd>
                   <Group gap={4}>
-                    {isSelf && <Badge size="sm" variant="outline">you</Badge>}
-                    {user.isDisabled && <Badge size="sm" color="red">disabled</Badge>}
+                    {isSelf && <Badge size="sm" variant="outline">{t('users.you')}</Badge>}
+                    {user.isDisabled && <Badge size="sm" color="red">{t('users.disabled')}</Badge>}
                     {user.mustChangePassword && (
-                      <Badge size="sm" color="yellow">must change password</Badge>
+                      <Badge size="sm" color="yellow">{t('users.mustChangePassword')}</Badge>
                     )}
                   </Group>
                 </TableTd>
                 <TableTd>
                   <Group gap={4} wrap="nowrap">
-                    <Tooltip label="Reset password">
+                    <Tooltip label={t('users.resetPassword')}>
                       <ActionIcon variant="subtle" onClick={() => setResetting(user)}>
                         <IconKey size={16} />
                       </ActionIcon>
                     </Tooltip>
-                    <Tooltip label="Change roles">
+                    <Tooltip label={t('users.changeRoles')}>
                       <ActionIcon variant="subtle" onClick={() => setEditingRoles(user)}>
                         <IconUserCog size={16} />
                       </ActionIcon>
                     </Tooltip>
-                    <Tooltip label={user.isDisabled ? 'Enable' : 'Disable'}>
+                    <Tooltip label={user.isDisabled ? t('users.enable') : t('users.disable')}>
                       {/* Disabling yourself is refused by the API; hiding it avoids the dead end. */}
                       <ActionIcon
                         variant="subtle"
@@ -101,7 +107,7 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
                           startTransition(async () =>
                             report(
                               await setEnabled(user.id, user.isDisabled),
-                              user.isDisabled ? 'Account enabled.' : 'Account disabled.',
+                              user.isDisabled ? t('users.enabled') : t('users.disabledDone'),
                             ),
                           )
                         }
@@ -123,7 +129,7 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
         onClose={() => setCreating(false)}
         onSubmit={(values) =>
           startTransition(async () =>
-            report(await createUser(values), 'User created.', () => setCreating(false)),
+            report(await createUser(values), t('users.created'), () => setCreating(false)),
           )
         }
       />
@@ -136,7 +142,7 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
           startTransition(async () =>
             report(
               await resetPassword(resetting!.id, password),
-              'Password reset. They must change it at next sign-in.',
+              t('users.passwordReset'),
               () => setResetting(null),
             ),
           )
@@ -151,7 +157,7 @@ export function UsersTable({ users, currentUserId }: { users: ManagedUser[]; cur
           startTransition(async () =>
             report(
               await setRoles(editingRoles!.id, roles),
-              'Roles updated. Their other sessions were signed out.',
+              t('users.rolesUpdated'),
               () => setEditingRoles(null),
             ),
           )
@@ -169,36 +175,34 @@ function CreateUserModal({
   onClose: () => void;
   onSubmit: (values: { userName: string; email: string; displayName: string; password: string; roles: string[] }) => void;
 }) {
+  const t = useT();
   const form = useForm({
     initialValues: { userName: '', email: '', displayName: '', password: '', roles: ['Editor'] },
     validate: {
-      userName: (v) => (v.trim() ? null : 'Required'),
-      email: (v) => (/^\S+@\S+\.\S+$/.test(v) ? null : 'Enter a valid email'),
-      displayName: (v) => (v.trim() ? null : 'Required'),
-      password: (v) => (v.length >= 8 ? null : 'At least 8 characters'),
+      userName: (v) => (v.trim() ? null : t('common.required')),
+      email: (v) => (/^\S+@\S+\.\S+$/.test(v) ? null : t('users.emailInvalid')),
+      displayName: (v) => (v.trim() ? null : t('common.required')),
+      password: (v) => (v.length >= 8 ? null : t('users.passwordTooShort')),
     },
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title="New user">
+    <Modal opened={opened} onClose={onClose} title={t('users.new')}>
       <form onSubmit={form.onSubmit(onSubmit)}>
         <Stack>
-          <Text size="sm" c="dimmed">
-            Give them this password directly. They will be required to choose their own the
-            first time they sign in.
-          </Text>
+          <Text size="sm" c="dimmed">{t('users.createIntro')}</Text>
 
-          <TextInput label="Username" placeholder="editor1" {...form.getInputProps('userName')} />
-          <TextInput label="Email" placeholder="editor1@example.com" {...form.getInputProps('email')} />
-          <TextInput label="Display name" {...form.getInputProps('displayName')} />
+          <TextInput label={t('users.username')} placeholder="editor1" {...form.getInputProps('userName')} />
+          <TextInput label={t('users.email')} placeholder="editor1@example.com" {...form.getInputProps('email')} />
+          <TextInput label={t('users.displayName')} {...form.getInputProps('displayName')} />
           <PasswordInput
-            label="Temporary password"
-            description="At least 8 characters."
+            label={t('users.tempPassword')}
+            description={t('users.tempPasswordHelp')}
             {...form.getInputProps('password')}
           />
-          <MultiSelect label="Roles" data={ROLES} {...form.getInputProps('roles')} />
+          <MultiSelect label={t('users.roles')} data={roleOptions(t)} {...form.getInputProps('roles')} />
 
-          <Button type="submit" loading={pending}>Create user</Button>
+          <Button type="submit" loading={pending}>{t('users.createSubmit')}</Button>
         </Stack>
       </form>
     </Modal>
@@ -213,21 +217,19 @@ function ResetPasswordModal({
   onClose: () => void;
   onSubmit: (password: string) => void;
 }) {
+  const t = useT();
   const form = useForm({
     initialValues: { password: '' },
-    validate: { password: (v) => (v.length >= 8 ? null : 'At least 8 characters') },
+    validate: { password: (v) => (v.length >= 8 ? null : t('users.passwordTooShort')) },
   });
 
   return (
-    <Modal opened={!!user} onClose={onClose} title={`Reset password for ${user?.userName}`}>
+    <Modal opened={!!user} onClose={onClose} title={t('users.resetTitle', { name: user?.userName ?? '' })}>
       <form onSubmit={form.onSubmit((v) => onSubmit(v.password))}>
         <Stack>
-          <Text size="sm" c="dimmed">
-            Their existing sessions end immediately, and they must choose a new password at
-            next sign-in.
-          </Text>
-          <PasswordInput label="New temporary password" {...form.getInputProps('password')} />
-          <Button type="submit" loading={pending}>Reset password</Button>
+          <Text size="sm" c="dimmed">{t('users.resetIntro')}</Text>
+          <PasswordInput label={t('users.resetField')} {...form.getInputProps('password')} />
+          <Button type="submit" loading={pending}>{t('users.resetPassword')}</Button>
         </Stack>
       </form>
     </Modal>
@@ -242,23 +244,21 @@ function RolesModal({
   onClose: () => void;
   onSubmit: (roles: string[]) => void;
 }) {
+  const t = useT();
   const [roles, setRolesValue] = useState<string[]>([]);
 
   return (
     <Modal
       opened={!!user}
       onClose={onClose}
-      title={`Roles for ${user?.userName}`}
+      title={t('users.rolesTitle', { name: user?.userName ?? '' })}
       // Seed from the user each time the modal opens rather than holding stale state.
       onEnterTransitionEnd={() => setRolesValue(user?.roles ?? [])}
     >
       <Stack>
-        <MultiSelect label="Roles" data={ROLES} value={roles} onChange={setRolesValue} />
-        <Text size="sm" c="dimmed">
-          Roles live in the access token, so their other sessions are signed out to apply this
-          immediately.
-        </Text>
-        <Button loading={pending} onClick={() => onSubmit(roles)}>Save roles</Button>
+        <MultiSelect label={t('users.roles')} data={roleOptions(t)} value={roles} onChange={setRolesValue} />
+        <Text size="sm" c="dimmed">{t('users.rolesIntro')}</Text>
+        <Button loading={pending} onClick={() => onSubmit(roles)}>{t('users.rolesSubmit')}</Button>
       </Stack>
     </Modal>
   );

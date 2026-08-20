@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { Stack, Title } from '@mantine/core';
 import { ApiError } from '@/lib/problem';
 import { flatten, getCategory, getTree } from '@/lib/categories';
+import { getT } from '@/i18n/server';
 import { CategoryForm } from '../../category-form';
 
 export default async function EditCategoryPage({
@@ -16,11 +17,12 @@ export default async function EditCategoryPage({
     throw error;
   });
 
+  const t = await getT();
   const options = flatten(await getTree());
 
   return (
     <Stack>
-      <Title order={2}>Edit {detail.category.name}</Title>
+      <Title order={2}>{t('categories.editTitle', { name: detail.category.name })}</Title>
       <CategoryForm
         id={id}
         options={options}

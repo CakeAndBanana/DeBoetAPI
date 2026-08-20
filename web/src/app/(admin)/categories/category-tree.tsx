@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
-  ActionIcon, Anchor, Badge, Box, Button, Card, Code, Group, Highlight, Modal, Paper, Stack,
-  Text, TextInput, Tooltip, UnstyledButton,
+  ActionIcon, Anchor, Badge, Box, Button, Card, Code, Divider, Group, Highlight, Modal, Paper,
+  Stack, Text, TextInput, Tooltip, UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -18,6 +18,7 @@ import {
 import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
 import { CategoryDetailsModal } from './category-details-modal';
+import { useT } from '@/i18n/client';
 
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
 
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function CategoryTree({ nodes, options, siteUrl }: Props) {
+  const t = useT();
   const [viewing, setViewing] = useState<CategoryNode | null>(null);
   const [moving, setMoving] = useState<CategoryNode | null>(null);
   const [deleting, setDeleting] = useState<CategoryNode | null>(null);
@@ -90,73 +92,142 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
 
   function report(result: { ok: boolean; message?: string; promoted?: string[] }, success: string) {
     if (!result.ok) {
-      notifications.show({ color: 'red', title: 'Refused', message: result.message ?? 'Failed' });
+      notifications.show({ color: 'red', title: t('common.refused'), message: result.message ?? t('categories.failed') });
       return;
     }
 
     const promoted = result.promoted?.length
-      ? ` ${result.promoted.length} child category was promoted to the grandparent.`
+      ? t('categories.promoted', { count: result.promoted.length })
       : '';
-    notifications.show({ color: 'green', title: 'Done', message: success + promoted });
+    notifications.show({ color: 'green', title: t('common.done'), message: success + promoted });
   }
 
-  function drop(targetId: string | null) {
-    const sourceId = dragged;
+  function drop(targetId: string | null, source: string | null = dragged) {
+    const sourceId = source;
     setDragged(null);
     setDropTarget(undefined);
 
     if (!sourceId || !canDrop(nodes, sourceId, targetId)) return;
 
     startTransition(async () => {
-      report(await moveCategory(sourceId, targetId), 'Category moved.');
+      report(await moveCategory(sourceId, targetId), t('categories.moved'));
     });
   }
 
+  /**
+   * Touch dragging.
+   *
+   * HTML5 drag-and-drop does not fire on touch at all, so a finger could reorder nothing. The
+   * native path is left exactly as it was for mice — it gives real drag images and costs
+   * nothing — and pointer events cover touch and pen beside it. Both end in the same `drop`.
+   *
+   * The target is resolved with elementFromPoint rather than by listening on each card:
+   * pointer capture sends every move to the handle that started the drag, so the cards below
+   * never hear about it.
+   */
+  const touchDrag = useRef<string | null>(null);
+
+  function targetUnder(x: number, y: number): { id: string | null; valid: boolean } {
+    const element = document.elementFromPoint(x, y);
+
+    if (element?.closest('[data-root-drop]')) return { id: null, valid: true };
+
+    const id = element?.closest('[data-category-id]')?.getAttribute('data-category-id') ?? null;
+    const source = touchDrag.current;
+    return { id, valid: !!id && !!source && canDrop(nodes, source, id) };
+  }
+
+  function beginTouchDrag(event: React.PointerEvent, id: string) {
+    if (!draggingAllowed || event.pointerType === 'mouse') return;
+
+    // Claims the gesture from the page's own scrolling, which otherwise wins.
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    touchDrag.current = id;
+    setDragged(id);
+  }
+
+  function moveTouchDrag(event: React.PointerEvent) {
+    if (touchDrag.current === null) return;
+    event.preventDefault();
+
+    const { id, valid } = targetUnder(event.clientX, event.clientY);
+    setDropTarget(valid ? id : undefined);
+  }
+
+  function endTouchDrag(event: React.PointerEvent) {
+    const source = touchDrag.current;
+    if (source === null) return;
+    touchDrag.current = null;
+
+    const { id, valid } = targetUnder(event.clientX, event.clientY);
+    if (valid) {
+      drop(id, source);
+      return;
+    }
+
+    setDragged(null);
+    setDropTarget(undefined);
+  }
+
+  function cancelTouchDrag() {
+    touchDrag.current = null;
+    setDragged(null);
+    setDropTarget(undefined);
+  }
+
+  const draggingAllowed = !searching;
+
   return (
     <>
-      <Group>
+      <Group justify="space-between" wrap="nowrap" align="flex-start">
+        <Group>
+          <TextInput
+            w={280}
+            placeholder={t('categories.search')}
+            leftSection={<IconSearch size={16} />}
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            rightSection={search ? (
+              <ActionIcon variant="subtle" aria-label={t('categories.clearSearch')} onClick={() => setSearch('')}>
+                <IconX size={16} />
+              </ActionIcon>
+            ) : null}
+          />
+
+          {/* Collapsing is meaningless while a search is forcing branches open. */}
+          <Button
+            variant="default"
+            disabled={searching}
+            onClick={() => setCollapsed(persist(new Set()))}
+          >
+            {t('categories.expandAll')}
+          </Button>
+          <Button variant="default" disabled={searching} onClick={collapseAll}>
+            {t('categories.collapseAll')}
+          </Button>
+        </Group>
+
         <Button component={Link} href="/categories/new" leftSection={<IconPlus size={16} />}>
-          New category
-        </Button>
-
-        <TextInput
-          w={280}
-          placeholder="Search name or route"
-          leftSection={<IconSearch size={16} />}
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          rightSection={search && (
-            <ActionIcon variant="subtle" aria-label="Clear search" onClick={() => setSearch('')}>
-              <IconX size={16} />
-            </ActionIcon>
-          )}
-        />
-
-        {/* Collapsing is meaningless while a search is forcing branches open. */}
-        <Button
-          variant="default"
-          disabled={searching}
-          onClick={() => setCollapsed(persist(new Set()))}
-        >
-          Expand all
-        </Button>
-        <Button variant="default" disabled={searching} onClick={collapseAll}>
-          Collapse all
+          {t('categories.new')}
         </Button>
       </Group>
 
       {searching && (
         <Text size="sm" c="dimmed">
           {countNodes(visible) === 0
-            ? 'Nothing matches that.'
-            : `${countNodes(visible)} of ${countNodes(nodes)} categories, with the branches they sit in.`}
-          {' '}Dragging is off while searching, because the tree on screen is not the whole tree.
+            ? t('categories.noMatch')
+            : t('categories.matchCount', { shown: countNodes(visible), total: countNodes(nodes) })}
+          {' '}{t('categories.dragOffWhileSearching')}
         </Text>
       )}
 
-      {nodes.length === 0 && <Text c="dimmed">No categories yet.</Text>}
+      <Divider />
 
-      <Stack gap="xs">
+      {nodes.length === 0 && <Text c="dimmed">{t('categories.empty')}</Text>}
+
+      {/* gap 0: each row carries its own bottom padding so the guide lines stay unbroken. */}
+      <Stack gap={0}>
         {visible.map((node) => (
           <Branch
             key={node.id}
@@ -176,7 +247,12 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             onDelete={setDeleting}
             onView={setViewing}
             siteUrl={siteUrl}
-            draggingAllowed={!searching}
+            draggingAllowed={draggingAllowed}
+            onTouchDragStart={beginTouchDrag}
+            onTouchDragMove={moveTouchDrag}
+            onTouchDragEnd={endTouchDrag}
+            onTouchDragCancel={cancelTouchDrag}
+            continues={[]}
           />
         ))}
       </Stack>
@@ -185,6 +261,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
       {dragged !== null && !searching && (
         <Paper
           withBorder
+          data-root-drop
           p="md"
           mt="sm"
           style={{
@@ -195,7 +272,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
           onDragOver={(e) => { e.preventDefault(); setDropTarget(null); }}
           onDrop={(e) => { e.preventDefault(); drop(null); }}
         >
-          <Text size="sm" c="dimmed" ta="center">Drop here to make it a root category</Text>
+          <Text size="sm" c="dimmed" ta="center">{t('categories.dropAsRoot')}</Text>
         </Paper>
       )}
 
@@ -206,18 +283,16 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
         onClose={() => setViewing(null)}
       />
 
-      <Modal opened={!!moving} onClose={() => setMoving(null)} title={`Move "${moving?.name}"`}>
+      <Modal opened={!!moving} onClose={() => setMoving(null)} title={t('categories.moveTitle', { name: moving?.name ?? '' })}>
         <Stack>
-          <Text size="sm" c="dimmed">
-            Everything beneath it moves too, and every descendant route is rewritten.
-          </Text>
+          <Text size="sm" c="dimmed">{t('categories.moveBody')}</Text>
           {/*
             Only categories outside the moving branch are offered. The API rejects a move into
             one's own subtree with a 409, so listing those would just be a dead end.
           */}
           <CategoryPicker
-            label="New parent"
-            placeholder="(make it a root category)"
+            label={t('categories.moveParent')}
+            placeholder={t('categories.moveParentPlaceholder')}
             options={options}
             exclude={movingSubtree}
             value={newParent}
@@ -228,34 +303,31 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             onClick={() =>
               startTransition(async () => {
                 const result = await moveCategory(moving!.id, newParent);
-                report(result, 'Category moved.');
+                report(result, t('categories.moved'));
                 if (result.ok) setMoving(null);
               })
             }
           >
-            Move
+            {t('common.move')}
           </Button>
         </Stack>
       </Modal>
 
-      <Modal opened={!!deleting} onClose={() => setDeleting(null)} title={`Delete "${deleting?.name}"`}>
+      <Modal opened={!!deleting} onClose={() => setDeleting(null)} title={t('categories.deleteTitle', { name: deleting?.name ?? '' })}>
         <Stack>
-          <Text size="sm">
-            Its children are <strong>not</strong> deleted — they are promoted to this
-            category&apos;s parent, and their routes are rewritten to match.
-          </Text>
+          <Text size="sm">{t('categories.deleteBody')}</Text>
           <Button
             color="red"
             loading={pending}
             onClick={() =>
               startTransition(async () => {
                 const result = await deleteCategory(deleting!.id);
-                report(result, 'Category deleted.');
+                report(result, t('categories.deleted'));
                 if (result.ok) setDeleting(null);
               })
             }
           >
-            Delete
+            {t('common.delete')}
           </Button>
         </Stack>
       </Modal>
@@ -282,11 +354,23 @@ interface BranchProps {
   /** Search terms, for highlighting. Empty when not searching. */
   terms: string[];
   draggingAllowed: boolean;
+  onTouchDragStart: (event: React.PointerEvent, id: string) => void;
+  onTouchDragMove: (event: React.PointerEvent) => void;
+  onTouchDragEnd: (event: React.PointerEvent) => void;
+  onTouchDragCancel: () => void;
+  /**
+   * One entry per indent column. Entry j says whether the ancestor sitting at column j has a
+   * further sibling below, which is what decides whether its vertical guide keeps running past
+   * this row. The last entry describes this node itself, and drives the tail of its own elbow.
+   */
+  continues: boolean[];
 }
 
 function Branch(props: BranchProps) {
+  const t = useT();
   const {
     node, depth, nodes, collapsed, onToggle, dragged, dropTarget, siteUrl, terms, draggingAllowed,
+    continues,
   } = props;
 
   const children = node.children ?? [];
@@ -309,10 +393,15 @@ function Branch(props: BranchProps) {
 
   return (
     <>
+      <Group gap={0} wrap="nowrap" align="stretch" pb={4}>
+        {continues.map((runsOn, column) => (
+          <TreeGuide key={column} runsOn={runsOn} isElbow={column === continues.length - 1} />
+        ))}
+
       <Card
         withBorder
         padding="xs"
-        ml={depth * 24}
+        data-category-id={node.id}
         draggable={draggingAllowed}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';
@@ -333,6 +422,9 @@ function Branch(props: BranchProps) {
           props.onDrop(node.id);
         }}
         style={{
+          // Takes the width the guide columns leave behind.
+          flex: 1,
+          minWidth: 0,
           opacity: isDragging ? 0.4 : 1,
           cursor: draggingAllowed ? 'grab' : 'default',
           // Teal, not blue: blue now means "off menu", and a drop target has to stay
@@ -343,13 +435,33 @@ function Branch(props: BranchProps) {
       >
         <Group justify="space-between" wrap="nowrap" gap="md">
           <Group gap="xs" wrap="nowrap">
-            <IconGripVertical size={16} style={{ opacity: 0.4, flexShrink: 0 }} />
+            {/*
+              The touch handle. Deliberately just the grip and not the whole card: a finger
+              anywhere else must still be able to scroll the page, and touchAction none is what
+              stops the browser claiming the gesture first.
+            */}
+            <span
+              onPointerDown={(e) => props.onTouchDragStart(e, node.id)}
+              onPointerMove={props.onTouchDragMove}
+              onPointerUp={props.onTouchDragEnd}
+              onPointerCancel={props.onTouchDragCancel}
+              style={{
+                display: 'inline-flex',
+                flexShrink: 0,
+                touchAction: draggingAllowed ? 'none' : 'auto',
+                cursor: draggingAllowed ? 'grab' : 'default',
+                padding: 4,
+                margin: -4,
+              }}
+            >
+              <IconGripVertical size={16} style={{ opacity: 0.4 }} />
+            </span>
 
             {hasChildren ? (
               <ActionIcon
                 variant="subtle"
                 size="sm"
-                aria-label={isCollapsed ? 'Expand' : 'Collapse'}
+                aria-label={isCollapsed ? t('categories.expand') : t('categories.collapse')}
                 onClick={() => onToggle(node.id)}
               >
                 {isCollapsed ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}
@@ -394,11 +506,11 @@ function Branch(props: BranchProps) {
               </Anchor>
             </Tooltip>
 
-            {!node.isActive && <Badge color="red" size="sm">inactive</Badge>}
-            {!node.isMenu && <Badge color="blue" size="sm">off menu</Badge>}
+            {!node.isActive && <Badge color="red" size="sm">{t('categories.inactive')}</Badge>}
+            {!node.isMenu && <Badge color="blue" size="sm">{t('categories.offMenu')}</Badge>}
             {hasChildren && isCollapsed && (
               <Badge color="gray" variant="light" size="sm">
-                {hiddenCount} hidden
+                {t('categories.hidden', { count: hiddenCount })}
               </Badge>
             )}
           </Group>
@@ -411,13 +523,13 @@ function Branch(props: BranchProps) {
             <Box style={{ flex: 1, minWidth: 0 }}>
               {node.metaTitle && (
                 <Text size="xs" truncate title={node.metaTitle}>
-                  <Text span size="xs" c="dimmed">Meta title&ensp;</Text>
+                  <Text span size="xs" c="dimmed">{t('categories.metaTitle')}&ensp;</Text>
                   {node.metaTitle}
                 </Text>
               )}
               {node.metaDescription && (
                 <Text size="xs" truncate title={node.metaDescription}>
-                  <Text span size="xs" c="dimmed">Meta desc&ensp;</Text>
+                  <Text span size="xs" c="dimmed">{t('categories.metaDesc')}&ensp;</Text>
                   {node.metaDescription}
                 </Text>
               )}
@@ -426,27 +538,27 @@ function Branch(props: BranchProps) {
 
           {/* draggable={false} so pressing a button never starts a drag. */}
           <Group gap={4} wrap="nowrap" draggable={false} onDragStart={(e) => e.preventDefault()}>
-            <Tooltip label="Add child">
+            <Tooltip label={t('common.addChild')}>
               <ActionIcon component={Link} href={`/categories/new?parent=${node.id}`} variant="subtle">
                 <IconPlus size={16} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Edit">
+            <Tooltip label={t('common.edit')}>
               <ActionIcon component={Link} href={`/categories/${node.id}/edit`} variant="subtle">
                 <IconPencil size={16} />
               </ActionIcon>
             </Tooltip>
-              <Tooltip label="History">
+              <Tooltip label={t('common.history')}>
                 <ActionIcon component={Link} href={`/categories/${node.id}/history`} variant="subtle">
                   <IconHistory size={16} />
                 </ActionIcon>
               </Tooltip>
-                <Tooltip label="Move">
+                <Tooltip label={t('common.move')}>
                   <ActionIcon variant="subtle" onClick={() => props.onMove(node)}>
                     <IconArrowsMove size={16} />
                   </ActionIcon>
                 </Tooltip>
-                <Tooltip label="Delete">
+                <Tooltip label={t('common.delete')}>
                   <ActionIcon variant="subtle" color="red" onClick={() => props.onDelete(node)}>
                     <IconTrash size={16} />
                   </ActionIcon>
@@ -455,10 +567,66 @@ function Branch(props: BranchProps) {
         </Group>
       </Card>
 
+      </Group>
+
       {!isCollapsed &&
-        children.map((child) => (
-          <Branch key={child.id} {...props} node={child} depth={depth + 1} />
+        children.map((child, i) => (
+          <Branch
+            key={child.id}
+            {...props}
+            node={child}
+            depth={depth + 1}
+            // The child gains a column of its own; whether its guide continues depends on
+            // whether another sibling follows it.
+            continues={[...continues, i < children.length - 1]}
+          />
         ))}
     </>
+  );
+}
+
+const GUIDE_WIDTH = 24;
+/** Where the vertical line sits inside a column: under the chevron of the row above. */
+const GUIDE_LINE = 11;
+
+/**
+ * One indent column of the tree's connector lines.
+ *
+ * A plain column is a vertical line, drawn only while the ancestor it belongs to still has
+ * siblings to come — that is what stops a line trailing past the end of a branch. The last
+ * column of a row is the elbow: it rises to meet the parent's line, turns right into the card,
+ * and carries on downwards only when another sibling follows.
+ *
+ * Absolutely positioned inside a stretched flex cell, so the lines span the row's padding too
+ * and meet the next row without a gap.
+ */
+function TreeGuide({ runsOn, isElbow }: { runsOn: boolean; isElbow: boolean }) {
+  const colour = 'var(--mantine-color-default-border)';
+  const line = { position: 'absolute' as const, background: colour };
+
+  return (
+    <div style={{ width: GUIDE_WIDTH, flexShrink: 0, position: 'relative' }} aria-hidden>
+      {!isElbow && runsOn && (
+        <span style={{ ...line, left: GUIDE_LINE, top: 0, bottom: 0, width: 1 }} />
+      )}
+
+      {isElbow && (
+        <>
+          <span style={{ ...line, left: GUIDE_LINE, top: 0, height: '50%', width: 1 }} />
+          <span
+            style={{
+              ...line,
+              left: GUIDE_LINE,
+              top: '50%',
+              width: GUIDE_WIDTH - GUIDE_LINE,
+              height: 1,
+            }}
+          />
+          {runsOn && (
+            <span style={{ ...line, left: GUIDE_LINE, top: '50%', bottom: 0, width: 1 }} />
+          )}
+        </>
+      )}
+    </div>
   );
 }

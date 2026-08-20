@@ -3,20 +3,23 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NavLink } from '@mantine/core';
+import { useT } from '@/i18n/client';
 
 /**
  * Client component on purpose: Mantine's NavLink is a client component, and React refuses to
  * let a Server Component pass it a function prop like `component={Link}`.
  */
-export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
+export function AdminNav({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
+  const t = useT();
 
   return (
     <>
       <NavLink
         component={Link}
+        onClick={onNavigate}
         href="/categories"
-        label="Categories"
+        label={t('nav.categories')}
         active={pathname.startsWith('/categories')}
       />
       {/* Presentation only — the API refuses editors regardless of what is rendered. */}
@@ -24,14 +27,16 @@ export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
         <>
           <NavLink
             component={Link}
+            onClick={onNavigate}
             href="/users"
-            label="Users"
+            label={t('nav.users')}
             active={pathname.startsWith('/users')}
           />
           <NavLink
             component={Link}
+            onClick={onNavigate}
             href="/audit"
-            label="Change history"
+            label={t('nav.history')}
             active={pathname.startsWith('/audit')}
           />
         </>

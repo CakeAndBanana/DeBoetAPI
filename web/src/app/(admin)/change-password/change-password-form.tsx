@@ -5,18 +5,20 @@ import { useRouter } from 'next/navigation';
 import { Alert, Button, Card, PasswordInput, Stack } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
+import { useT } from '@/i18n/client';
 
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   const form = useForm({
     initialValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
     validate: {
-      currentPassword: (v) => (v ? null : 'Required'),
-      newPassword: (v) => (v.length >= 8 ? null : 'At least 8 characters'),
-      confirmPassword: (v, values) => (v === values.newPassword ? null : 'The passwords do not match'),
+      currentPassword: (v) => (v ? null : t('common.required')),
+      newPassword: (v) => (v.length >= 8 ? null : t('users.passwordTooShort')),
+      confirmPassword: (v, values) => (v === values.newPassword ? null : t('password.mismatch')),
     },
   });
 
@@ -37,20 +39,20 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
     setBusy(false);
 
     if (!response) {
-      setError('Could not reach the server.');
+      setError(t('common.serverUnreachable'));
       return;
     }
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(body.error ?? 'Could not change the password.');
+      setError(body.error ?? t('password.failedBody'));
       return;
     }
 
     notifications.show({
       color: 'green',
-      title: 'Password changed',
-      message: 'Any other sessions have been signed out.',
+      title: t('password.changed'),
+      message: t('password.changedBody'),
     });
 
     router.push('/categories');
@@ -62,32 +64,29 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       <form onSubmit={form.onSubmit(submit)}>
         <Stack>
           {forced && (
-            <Alert color="yellow" title="A password change is required">
-              There is no self-service recovery here, so if you forget this one an
-              administrator has to reset it for you.
-            </Alert>
+<Alert color="yellow" title={t('password.forcedTitle')}>{t('password.forcedBody')}</Alert>
           )}
 
-          {error && <Alert color="red" title="Could not change the password">{error}</Alert>}
+          {error && <Alert color="red" title={t('password.failed')}>{error}</Alert>}
 
           <PasswordInput
-            label={forced ? 'The password you were given' : 'Current password'}
+            label={forced ? t('password.given') : t('password.current')}
             autoComplete="current-password"
             {...form.getInputProps('currentPassword')}
           />
           <PasswordInput
-            label="New password"
-            description="At least 8 characters."
+            label={t('password.new')}
+            description={t('password.newHelp')}
             autoComplete="new-password"
             {...form.getInputProps('newPassword')}
           />
           <PasswordInput
-            label="Confirm new password"
+            label={t('password.confirm')}
             autoComplete="new-password"
             {...form.getInputProps('confirmPassword')}
           />
 
-          <Button type="submit" loading={busy}>Change password</Button>
+          <Button type="submit" loading={busy}>{t('password.submit')}</Button>
         </Stack>
       </form>
     </Card>

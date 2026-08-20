@@ -4,18 +4,20 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Alert, Button, Paper, PasswordInput, Stack, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import { useT } from '@/i18n/client';
 
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const t = useT();
 
   const form = useForm({
     initialValues: { username: '', password: '' },
     validate: {
-      username: (v) => (v.trim() ? null : 'Required'),
-      password: (v) => (v ? null : 'Required'),
+      username: (v) => (v.trim() ? null : t('common.required')),
+      password: (v) => (v ? null : t('common.required')),
     },
   });
 
@@ -34,13 +36,13 @@ export function LoginForm() {
     setBusy(false);
 
     if (!response) {
-      setError('Could not reach the server.');
+      setError(t('common.serverUnreachable'));
       return;
     }
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(body.error ?? 'Sign in failed.');
+      setError(body.error ?? t('login.failedBody'));
       return;
     }
 
@@ -52,25 +54,25 @@ export function LoginForm() {
     <Paper withBorder shadow="sm" p="xl" radius="md" w={380}>
       <form onSubmit={form.onSubmit(submit)}>
         <Stack>
-          <Title order={3}>DeBoet Admin</Title>
+          <Title order={3}>{t('login.heading')}</Title>
 
-          {error && <Alert color="red" title="Sign in failed">{error}</Alert>}
+          {error && <Alert color="red" title={t('login.failed')}>{error}</Alert>}
 
           <TextInput
-            label="Username or email"
+            label={t('login.username')}
             placeholder="admin"
             autoComplete="username"
             data-autofocus
             {...form.getInputProps('username')}
           />
           <PasswordInput
-            label="Password"
+            label={t('login.password')}
             autoComplete="current-password"
             {...form.getInputProps('password')}
           />
 
           <Button type="submit" loading={busy} fullWidth>
-            Sign in
+            {t('login.submit')}
           </Button>
         </Stack>
       </form>

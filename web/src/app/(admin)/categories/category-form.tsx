@@ -9,6 +9,7 @@ import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import type { CategoryOption } from '@/lib/categories';
 import { CategoryPicker } from '@/components/category-picker';
+import { useT } from '@/i18n/client';
 import { createCategory, updateCategory, type CategoryInput } from './actions';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 
 export function CategoryForm({ options, id, initial }: Props) {
   const router = useRouter();
+  const t = useT();
   const [pending, startTransition] = useTransition();
 
   const form = useForm<CategoryInput>({
@@ -35,7 +37,7 @@ export function CategoryForm({ options, id, initial }: Props) {
       isActive: initial?.isActive ?? true,
       isMenu: initial?.isMenu ?? true,
     },
-    validate: { name: (v) => (v.trim() ? null : 'Required') },
+    validate: { name: (v) => (v.trim() ? null : t('common.required')) },
   });
 
   function submit(values: CategoryInput) {
@@ -46,11 +48,11 @@ export function CategoryForm({ options, id, initial }: Props) {
       const result = id ? await updateCategory(id, values) : await createCategory(values);
 
       if (!result.ok) {
-        notifications.show({ color: 'red', title: 'Refused', message: result.message! });
+        notifications.show({ color: 'red', title: t('common.refused'), message: result.message! });
         return;
       }
 
-      notifications.show({ color: 'green', title: 'Saved', message: 'Category saved.' });
+      notifications.show({ color: 'green', title: t('common.saved'), message: t('categories.savedMessage') });
       router.push('/categories');
       router.refresh();
     });
@@ -60,7 +62,7 @@ export function CategoryForm({ options, id, initial }: Props) {
     <Card withBorder maw={640}>
       <form onSubmit={form.onSubmit(submit)}>
         <Stack>
-          <TextInput label="Name" withAsterisk {...form.getInputProps('name')} />
+          <TextInput label={t('categories.fieldName')} withAsterisk {...form.getInputProps('name')} />
 
           {/*
             Optional on both forms. Left alone it derives from the name, but a route may need
@@ -69,30 +71,30 @@ export function CategoryForm({ options, id, initial }: Props) {
             as after, since a duplicate route is refused at creation.
           */}
           <TextInput
-            label="Slug"
-            placeholder={id ? undefined : '(derived from the name)'}
-            description="This category's own segment. Letters, digits and hyphens; anything else becomes a hyphen. Blank derives it from the name."
+            label={t('categories.fieldSlug')}
+            placeholder={id ? undefined : t('categories.fieldSlugPlaceholder')}
+            description={t('categories.fieldSlugHelp')}
             {...form.getInputProps('slug')}
           />
 
           {!id && (
             <CategoryPicker
-              label="Parent"
-              placeholder="(root category)"
-              description="Search by name or route."
+              label={t('categories.fieldParent')}
+              placeholder={t('categories.fieldParentPlaceholder')}
+              description={t('categories.fieldParentHelp')}
               options={options}
               {...form.getInputProps('parentId')}
             />
           )}
 
           <TextInput
-            label="Meta title"
-            description="Optional. Left blank, the category publishes no meta title."
+            label={t('categories.fieldMetaTitle')}
+            description={t('categories.fieldMetaTitleHelp')}
             {...form.getInputProps('metaTitle')}
           />
           <Textarea
-            label="Meta description"
-            description="Optional. Left blank, search engines write their own snippet."
+            label={t('categories.fieldMetaDesc')}
+            description={t('categories.fieldMetaDescHelp')}
             autosize
             minRows={2}
             {...form.getInputProps('metaDescription')}
@@ -100,19 +102,19 @@ export function CategoryForm({ options, id, initial }: Props) {
 
           <Group>
             <Switch
-              label="Active"
-              description="Hidden from listings when off"
+              label={t('categories.fieldActive')}
+              description={t('categories.fieldActiveHelp')}
               {...form.getInputProps('isActive', { type: 'checkbox' })}
             />
             <Switch
-              label="In menu"
-              description="Appears in navigation"
+              label={t('categories.fieldMenu')}
+              description={t('categories.fieldMenuHelp')}
               {...form.getInputProps('isMenu', { type: 'checkbox' })}
             />
           </Group>
 
           <Group>
-            <Button type="submit" loading={pending}>Save</Button>
+            <Button type="submit" loading={pending}>{t('common.save')}</Button>
             <Button variant="subtle" onClick={() => router.push('/categories')}>Cancel</Button>
           </Group>
         </Stack>

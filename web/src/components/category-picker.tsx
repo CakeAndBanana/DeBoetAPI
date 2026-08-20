@@ -3,6 +3,7 @@
 import { Group, Select, Text } from '@mantine/core';
 import { IconCheck } from '@tabler/icons-react';
 import type { CategoryOption } from '@/lib/categories';
+import { useT } from '@/i18n/client';
 
 interface Props {
   label: string;
@@ -33,6 +34,7 @@ interface Props {
 export function CategoryPicker({
   label, placeholder, description, value, onChange, onFocus, onBlur, options, exclude, error,
 }: Props) {
+  const t = useT();
   const data = exclude?.size ? options.filter((o) => !exclude.has(o.value)) : options;
   const routes = new Map(data.map((o) => [o.value, o.pathSlug]));
 
@@ -51,7 +53,7 @@ export function CategoryPicker({
       searchable
       limit={100}
       maxDropdownHeight={320}
-      nothingFoundMessage="No category matches that"
+      nothingFoundMessage={t('picker.noMatch')}
       // Names repeat across branches, so the route is searchable too: typing "christmas ice"
       // or "icelights" finds it even when the name alone is ambiguous.
       filter={({ options: items, search, limit: max }) => {

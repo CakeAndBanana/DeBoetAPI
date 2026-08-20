@@ -2,6 +2,8 @@ import {
   Badge, Code, Table, TableTbody, TableTd, TableTh, TableThead, TableTr, Text,
 } from '@mantine/core';
 import type { AuditEntry } from '@/lib/categories';
+import type { MessageKey } from '@/i18n';
+import { getT } from '@/i18n/server';
 
 const COLOURS: Record<string, string> = {
   Created: 'green',
@@ -23,20 +25,22 @@ const COLOURS: Record<string, string> = {
  * Flat `TableThead` imports rather than `Table.Thead`: this renders inside a Server
  * Component, where dot notation on a client component is undefined.
  */
-export function AuditTable({ entries, showEntity = true }: { entries: AuditEntry[]; showEntity?: boolean }) {
+export async function AuditTable({ entries, showEntity = true }: { entries: AuditEntry[]; showEntity?: boolean }) {
+  const t = await getT();
+
   if (entries.length === 0) {
-    return <Text c="dimmed">Nothing recorded yet.</Text>;
+    return <Text c="dimmed">{t('audit.empty')}</Text>;
   }
 
   return (
     <Table striped highlightOnHover withTableBorder>
       <TableThead>
         <TableTr>
-          <TableTh w={170}>When</TableTh>
-          <TableTh w={140}>Who</TableTh>
-          <TableTh w={140}>Action</TableTh>
-          {showEntity && <TableTh w={220}>Record</TableTh>}
-          <TableTh>What changed</TableTh>
+          <TableTh w={170}>{t('audit.when')}</TableTh>
+          <TableTh w={140}>{t('audit.who')}</TableTh>
+          <TableTh w={140}>{t('audit.action')}</TableTh>
+          {showEntity && <TableTh w={220}>{t('audit.record')}</TableTh>}
+          <TableTh>{t('audit.whatChanged')}</TableTh>
         </TableTr>
       </TableThead>
       <TableTbody>
@@ -51,7 +55,7 @@ export function AuditTable({ entries, showEntity = true }: { entries: AuditEntry
             </TableTd>
             <TableTd>
               <Badge color={COLOURS[entry.action] ?? 'gray'} variant="light">
-                {entry.action}
+                {t(`action.${entry.action}` as MessageKey)}
               </Badge>
             </TableTd>
             {showEntity && (
