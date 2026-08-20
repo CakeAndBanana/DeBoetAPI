@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   ActionIcon, Anchor, Badge, Box, Button, Card, Code, Group, Modal, Paper, Stack, Text, Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -14,6 +15,7 @@ import type { CategoryNode, CategoryOption } from '@/lib/categories';
 import { canDrop, collectSubtreeIds, countDescendants, findNode } from '@/lib/tree-utils';
 import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
+import { CategoryDetailsModal } from './category-details-modal';
 
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
 
@@ -24,6 +26,7 @@ interface Props {
 }
 
 export function CategoryTree({ nodes, options, siteUrl }: Props) {
+  const [viewing, setViewing] = useState<CategoryNode | null>(null);
   const [moving, setMoving] = useState<CategoryNode | null>(null);
   const [deleting, setDeleting] = useState<CategoryNode | null>(null);
   const [newParent, setNewParent] = useState<string | null>(null);
@@ -132,6 +135,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             onDrop={drop}
             onMove={(n) => { setMoving(n); setNewParent(null); }}
             onDelete={setDeleting}
+            onView={setViewing}
             siteUrl={siteUrl}
           />
         ))}
@@ -154,6 +158,13 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
           <Text size="sm" c="dimmed" ta="center">Drop here to make it a root category</Text>
         </Paper>
       )}
+
+      <CategoryDetailsModal
+        categoryId={viewing?.id ?? null}
+        categoryName={viewing?.name ?? ''}
+        siteUrl={siteUrl}
+        onClose={() => setViewing(null)}
+      />
 
       <Modal opened={!!moving} onClose={() => setMoving(null)} title={`Move "${moving?.name}"`}>
         <Stack>
@@ -226,6 +237,7 @@ interface BranchProps {
   onDrop: (id: string) => void;
   onMove: (n: CategoryNode) => void;
   onDelete: (n: CategoryNode) => void;
+  onView: (n: CategoryNode) => void;
   siteUrl: string;
 }
 
@@ -301,7 +313,25 @@ function Branch(props: BranchProps) {
               <Box w={26} />
             )}
 
-            <Text fw={500} c={node.isActive ? undefined : 'red'}>{node.name}</Text>
+            {/*
+              The name opens the full record. draggable={false} and the click guard keep the
+              card's drag-to-move from swallowing it, exactly as with the route link beside it.
+            */}
+            <UnstyledButton
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
+              onClick={(e) => { e.stopPropagation(); props.onView(node); }}
+              style={{ cursor: 'pointer' }}
+            >
+              <Text
+                fw={500}
+                c={node.isActive ? undefined : 'red'}
+                style={{ textDecorationStyle: 'dotted' }}
+                td="underline"
+              >
+                {node.name}
+              </Text>
+            </UnstyledButton>
             <Tooltip label={`${siteUrl}/${node.pathSlug}`}>
               <Anchor
                 href={`${siteUrl}/${node.pathSlug}`}

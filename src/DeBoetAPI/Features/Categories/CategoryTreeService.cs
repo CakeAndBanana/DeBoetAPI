@@ -36,7 +36,19 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     /// <summary>Path segment separator. Ids are wrapped in it so prefix matching cannot straddle two ids.</summary>
     private const char Separator = '/';
 
-    /// <summary>Level delimiter in <see cref="Category.PathSlug"/>. Never appears inside a segment.</summary>
+    /// <summary>
+    /// Level delimiter in <see cref="Category.PathSlug"/>.
+    /// <para>
+    /// A segment derived from a name never contains one — "Christmas Lights" becomes
+    /// <c>christmaslights</c>. A segment typed by hand may, because real routes are not all
+    /// spelled the same way and the alternative is a category that cannot be addressed
+    /// correctly. Nothing splits a path slug on this character: lookups compare the whole
+    /// string and a subtree rewrite works by prefix length, so an interior dash changes
+    /// nothing here. It only means two different trees can spell the same route
+    /// (<c>a</c> + <c>b-c</c> versus <c>a-b</c> + <c>c</c>), which the unique index on
+    /// path_slug refuses as a duplicate.
+    /// </para>
+    /// </summary>
     public const char PathSlugSeparator = '-';
 
     public async Task<CategoryResult> CreateAsync(
@@ -60,7 +72,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             }
         }
 
-        var finalSlug = Slugify(string.IsNullOrWhiteSpace(slug) ? name : slug);
+        var finalSlug = ResolveSlug(slug, name);
         var pathSlug = BuildPathSlug(parent, finalSlug);
 
         if (await db.Categories.AnyAsync(c => c.PathSlug == pathSlug, ct))
@@ -113,7 +125,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryResult.Fail(CategoryError.NotFound);
         }
 
-        var finalSlug = Slugify(string.IsNullOrWhiteSpace(slug) ? name : slug);
+        var finalSlug = ResolveSlug(slug, name);
 
         var parent = category.ParentId is null
             ? null
@@ -454,6 +466,34 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     /// because the dash delimits levels in <see cref="Category.PathSlug"/> — a dash inside a
     /// segment would make <c>christmas-christmaslights-icelights</c> impossible to split back.
     /// </summary>
+    /// <summary>
+    /// The segment to store: a hand-written slug kept as close to what was typed as is safe,
+    /// or one derived from the name when none was given.
+    /// </summary>
+    private static string ResolveSlug(string? slug, string name) =>
+        string.IsNullOrWhiteSpace(slug) ? Slugify(name) : NormalizeSlug(slug);
+
+    /// <summary>
+    /// Cleans a slug someone typed, keeping hyphens. Anything that is not a letter, digit or
+    /// hyphen is dropped, runs of hyphens collapse, and the ends are trimmed — so
+    /// <c>"Ice -- Lights!"</c> becomes <c>ice-lights</c> rather than being rejected.
+    /// </summary>
+    public static string NormalizeSlug(string value)
+    {
+        var cleaned = new string([.. value
+            .ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) ? c : PathSlugSeparator)]);
+
+        var segments = cleaned.Split(PathSlugSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var slug = string.Join(PathSlugSeparator, segments);
+
+        return slug.Length == 0
+            ? Guid.CreateVersion7().ToString("N")[..12]
+            : slug[..Math.Min(slug.Length, 200)];
+    }
+
+    /// <summary>Derives a segment from a name. Separators are stripped, never turned into
+    /// hyphens, because a hyphen delimits levels in the full route.</summary>
     public static string Slugify(string value)
     {
         var slug = new string([.. value

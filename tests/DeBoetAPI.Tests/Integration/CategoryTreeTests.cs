@@ -306,16 +306,19 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
     }
 
     [Fact]
-    public async Task SuppliedSlug_HasItsSeparatorsStripped()
+    public async Task SuppliedSlug_HasItsSeparatorsNormalisedToHyphens()
     {
+        // Unlike a slug derived from a name, a supplied one may contain hyphens: the caller is
+        // spelling a route deliberately. Everything else becomes one, collapsed and trimmed.
+        var suffix = Guid.NewGuid().ToString("N")[..8];
         var response = await Admin.PostAsJsonAsync("/api/v1/categories",
-            new { name = "Anything", slug = $"ice lights_{Guid.NewGuid():N}" });
+            new { name = "Anything", slug = $"ice lights_{suffix}" });
         response.EnsureSuccessStatusCode();
         var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
 
-        Assert.StartsWith("icelights", created.Slug);
-        Assert.DoesNotContain('-', created.Slug);
+        Assert.Equal($"ice-lights-{suffix}", created.Slug);
         Assert.DoesNotContain('_', created.Slug);
+        Assert.DoesNotContain(' ', created.Slug);
     }
 
     [Fact]

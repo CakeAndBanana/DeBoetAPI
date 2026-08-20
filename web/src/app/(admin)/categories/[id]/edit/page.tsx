@@ -27,6 +27,7 @@ export default async function EditCategoryPage({
         hasChildren={detail.children.length > 0}
         initial={{
           name: detail.category.name,
+          slug: detail.category.slug,
           metaTitle: detail.category.metaTitle ?? '',
           metaDescription: detail.category.metaDescription ?? '',
           sortOrder: Number(detail.category.sortOrder),

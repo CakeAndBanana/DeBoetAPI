@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiFetch } from '@/lib/api';
+import { getCategory, getCategoryHistory, type AuditEntry, type Paged } from '@/lib/categories';
 import { ApiError } from '@/lib/problem';
 
 export interface ActionResult {
@@ -83,4 +84,95 @@ export async function removeLink(childId: string, parentId: string) {
   return await run(() =>
     apiFetch(`/api/v1/categories/${childId}/links/${parentId}`, { method: 'DELETE' }),
   );
+}
+
+export interface CategoryDetails {
+  id: string;
+  name: string;
+  slug: string;
+  pathSlug: string;
+  /** Ancestors then the category itself, so the modal can print Christmas › Ice Lights. */
+  trail: { id: string; name: string }[];
+  metaTitle: string | null;
+  metaDescription: string | null;
+  isActive: boolean;
+  isMenu: boolean;
+  childCount: number;
+  secondaryParents: { id: string; name: string; pathSlug: string }[];
+  createdAt: string;
+  /**
+   * When the category was last touched, taken from the audit trail so it always refers to the
+   * same event as `updatedBy`. Falls back to the row's own timestamp when there is no trail to
+   * read — which also means it can differ from it: adding a secondary link is recorded as a
+   * change to this category but writes a row in `category_links`, leaving `updated_at` alone.
+   */
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string | null;
+  lastAction: string | null;
+  lastSummary: string | null;
+  /** Null when the account may not read the trail, which is what carries the names. */
+  changeCount: number | null;
+}
+
+/**
+ * Everything the details modal shows, in one round trip from the browser's point of view.
+ *
+ * Two API calls because the names live in the audit trail: `categories` stores only
+ * `created_by_id` / `updated_by_id`, and turning those into names would mean reading
+ * `/users`, which editors may not. The trail already snapshots `changed_by_name` at write
+ * time, so it answers "who" without any extra permission — and keeps reading correctly after
+ * an account is disabled.
+ */
+export async function categoryDetails(
+  id: string,
+): Promise<{ ok: true; details: CategoryDetails } | { ok: false; message: string }> {
+  try {
+    const detail = await getCategory(id);
+
+    let history: Paged<AuditEntry> | null = null;
+    try {
+      history = await getCategoryHistory(id);
+    } catch (error) {
+      // A 403 here just means no trail for this account. Anything else — including the
+      // redirect Next throws on an expired session — has to keep propagating.
+      if (!(error instanceof ApiError)) throw error;
+    }
+
+    const entries = history?.items ?? [];
+    // Newest first, so [0] is the most recent change. The Created entry is the oldest and may
+    // fall outside the fetched page on a heavily edited category; the date is shown regardless.
+    const created = entries.find((e) => e.action === 'Created');
+
+    return {
+      ok: true,
+      details: {
+        id: detail.category.id,
+        name: detail.category.name,
+        slug: detail.category.slug,
+        pathSlug: detail.category.pathSlug,
+        trail: [...detail.breadcrumb, detail.category].map((c) => ({ id: c.id, name: c.name })),
+        metaTitle: detail.category.metaTitle,
+        metaDescription: detail.category.metaDescription,
+        isActive: detail.category.isActive,
+        isMenu: detail.category.isMenu,
+        childCount: detail.children.length,
+        secondaryParents: detail.secondaryParents.map((c) => ({
+          id: c.id,
+          name: c.name,
+          pathSlug: c.pathSlug,
+        })),
+        createdAt: detail.category.createdAt,
+        updatedAt: entries[0]?.changedAt ?? detail.category.updatedAt,
+        createdBy: created?.changedByName ?? null,
+        updatedBy: entries[0]?.changedByName ?? null,
+        lastAction: entries[0]?.action ?? null,
+        lastSummary: entries[0]?.summary ?? null,
+        changeCount: history?.totalCount ?? null,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ApiError) return { ok: false, message: error.message };
+    throw error;
+  }
 }

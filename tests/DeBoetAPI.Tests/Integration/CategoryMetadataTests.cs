@@ -40,6 +40,68 @@ public class CategoryMetadataTests(PostgresFixture postgres) : CategoryTestBase(
     }
 
     [Fact]
+    public async Task AHandWrittenSlugKeepsItsHyphens()
+    {
+        // Derived slugs strip separators, but a route that already exists elsewhere may be
+        // spelled with a hyphen, so an explicit slug is kept as typed.
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var response = await Admin.PostAsJsonAsync("/api/v1/categories",
+            new { name = "Ice Lights", slug = $"ice-lights-{suffix}" });
+        response.EnsureSuccessStatusCode();
+        var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
+
+        Assert.Equal($"ice-lights-{suffix}", created.Slug);
+        Assert.Equal($"ice-lights-{suffix}", created.PathSlug);
+    }
+
+    [Fact]
+    public async Task AHandWrittenSlugIsTidiedRatherThanRejected()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var response = await Admin.PostAsJsonAsync("/api/v1/categories",
+            new { name = "Messy", slug = $"  Ice -- Lights! {suffix} " });
+        response.EnsureSuccessStatusCode();
+        var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
+
+        Assert.Equal($"ice-lights-{suffix}", created.Slug);
+    }
+
+    [Fact]
+    public async Task ANameStillDerivesASlugWithoutHyphens()
+    {
+        var response = await Admin.PostAsJsonAsync("/api/v1/categories",
+            new { name = $"Christmas Lights {Guid.NewGuid():N}" });
+        response.EnsureSuccessStatusCode();
+        var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
+
+        Assert.StartsWith("christmaslights", created.Slug);
+        Assert.DoesNotContain('-', created.Slug);
+    }
+
+    [Fact]
+    public async Task EditingTheSlugRewritesTheRouteOfTheWholeSubtree()
+    {
+        var (_, lights, ice) = await CreateChristmasChainAsync();
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var response = await Admin.PutAsJsonAsync($"/api/v1/categories/{lights.Id}", new
+        {
+            name = lights.Name,
+            slug = $"xmas-lights-{suffix}",
+            sortOrder = 0,
+            isActive = true,
+            isMenu = true,
+        });
+        response.EnsureSuccessStatusCode();
+        var updated = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
+        Assert.EndsWith($"xmas-lights-{suffix}", updated.PathSlug);
+
+        var child = await Admin.GetFromJsonAsync<CategoryDetailResponse>($"/api/v1/categories/{ice.Id}");
+        Assert.NotNull(child);
+        Assert.Contains($"xmas-lights-{suffix}-", child.Category.PathSlug);
+    }
+
+    [Fact]
     public async Task AMetaTitleOfWhitespaceIsStoredAsNull()
     {
         var response = await Admin.PostAsJsonAsync("/api/v1/categories",

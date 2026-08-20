@@ -27,6 +27,7 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
   const form = useForm<CategoryInput>({
     initialValues: {
       name: initial?.name ?? '',
+      slug: initial?.slug ?? '',
       metaTitle: initial?.metaTitle ?? '',
       metaDescription: initial?.metaDescription ?? '',
       parentId: initial?.parentId ?? null,
@@ -41,9 +42,10 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
 
   function submit(values: CategoryInput) {
     startTransition(async () => {
-      // No slug: omitting it makes the API derive one from the name, every time.
-      const payload = { ...values, slug: undefined };
-      const result = id ? await updateCategory(id, payload) : await createCategory(payload);
+      // The slug travels with the payload now. On create the field is not rendered, so it
+      // is blank and the API derives one from the name; on edit it carries whatever is in the
+      // box, which means renaming no longer silently rewrites an established route.
+      const result = id ? await updateCategory(id, values) : await createCategory(values);
 
       if (!result.ok) {
         notifications.show({ color: 'red', title: 'Refused', message: result.message! });
@@ -61,15 +63,28 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
       <form onSubmit={form.onSubmit(submit)}>
         <Stack>
           {id && (
-            <Alert color="yellow" title="Renaming changes the URL">
-              The slug is always derived from the name, so renaming changes this
-              category&apos;s route
-              {hasChildren ? ' and the route of every category beneath it' : ''}. Existing
-              links will break.
+            <Alert color="yellow" title="Changing the slug changes the URL">
+              The slug is this category&apos;s own segment of the route
+              {hasChildren ? ', and every category beneath it is prefixed by it' : ''}. Editing
+              it rewrites
+              {hasChildren ? ' those routes too' : ' the route'}, and existing links will break.
             </Alert>
           )}
 
           <TextInput label="Name" withAsterisk {...form.getInputProps('name')} />
+
+          {/*
+            Optional on both forms. Left alone it derives from the name, but a route may need
+            to be spelled a particular way — including with hyphens, which the derived form
+            never produces — and that has to be correctable before the category exists as well
+            as after, since a duplicate route is refused at creation.
+          */}
+          <TextInput
+            label="Slug"
+            placeholder={id ? undefined : '(derived from the name)'}
+            description="This category's own segment. Letters, digits and hyphens; anything else becomes a hyphen. Blank derives it from the name."
+            {...form.getInputProps('slug')}
+          />
 
           {!id && (
             <CategoryPicker
