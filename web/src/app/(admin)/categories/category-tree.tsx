@@ -1,23 +1,28 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
-  ActionIcon, Anchor, Badge, Box, Button, Card, Code, Group, Modal, Paper, Stack, Text, Tooltip,
-  UnstyledButton,
+  ActionIcon, Anchor, Badge, Box, Button, Card, Code, Group, Highlight, Modal, Paper, Stack,
+  Text, TextInput, Tooltip, UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconArrowsMove, IconChevronDown, IconChevronRight, IconGripVertical, IconHistory,
-  IconPencil, IconPlus, IconTrash,
+  IconPencil, IconPlus, IconSearch, IconTrash, IconX,
 } from '@tabler/icons-react';
 import type { CategoryNode, CategoryOption } from '@/lib/categories';
-import { canDrop, collectSubtreeIds, countDescendants, findNode } from '@/lib/tree-utils';
+import {
+  canDrop, collectSubtreeIds, countDescendants, countNodes, filterTree, findNode, searchTerms,
+} from '@/lib/tree-utils';
 import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
 import { CategoryDetailsModal } from './category-details-modal';
 
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
+
+/** Stands in for the collapsed set while searching: nothing is collapsed. */
+const EXPANDED: Set<string> = new Set();
 
 interface Props {
   nodes: CategoryNode[];
@@ -34,6 +39,11 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     ? collectSubtreeIds(findNode(nodes, moving.id) ?? moving)
     : undefined;
   const [pending, startTransition] = useTransition();
+
+  const [search, setSearch] = useState('');
+  const terms = useMemo(() => searchTerms(search), [search]);
+  const visible = useMemo(() => filterTree(nodes, terms), [nodes, terms]);
+  const searching = terms.length > 0;
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [dragged, setDragged] = useState<string | null>(null);
@@ -108,25 +118,54 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
         <Button component={Link} href="/categories/new" leftSection={<IconPlus size={16} />}>
           New category
         </Button>
-        <Button variant="default" onClick={() => setCollapsed(persist(new Set()))}>
+
+        <TextInput
+          w={280}
+          placeholder="Search name or route"
+          leftSection={<IconSearch size={16} />}
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          rightSection={search && (
+            <ActionIcon variant="subtle" aria-label="Clear search" onClick={() => setSearch('')}>
+              <IconX size={16} />
+            </ActionIcon>
+          )}
+        />
+
+        {/* Collapsing is meaningless while a search is forcing branches open. */}
+        <Button
+          variant="default"
+          disabled={searching}
+          onClick={() => setCollapsed(persist(new Set()))}
+        >
           Expand all
         </Button>
-        <Button variant="default" onClick={collapseAll}>
+        <Button variant="default" disabled={searching} onClick={collapseAll}>
           Collapse all
         </Button>
       </Group>
 
+      {searching && (
+        <Text size="sm" c="dimmed">
+          {countNodes(visible) === 0
+            ? 'Nothing matches that.'
+            : `${countNodes(visible)} of ${countNodes(nodes)} categories, with the branches they sit in.`}
+          {' '}Dragging is off while searching, because the tree on screen is not the whole tree.
+        </Text>
+      )}
+
       {nodes.length === 0 && <Text c="dimmed">No categories yet.</Text>}
 
       <Stack gap="xs">
-        {nodes.map((node) => (
+        {visible.map((node) => (
           <Branch
             key={node.id}
             node={node}
             depth={0}
             nodes={nodes}
-            collapsed={collapsed}
+            collapsed={searching ? EXPANDED : collapsed}
             onToggle={toggle}
+            terms={terms}
             dragged={dragged}
             dropTarget={dropTarget}
             onDragStart={setDragged}
@@ -137,12 +176,13 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             onDelete={setDeleting}
             onView={setViewing}
             siteUrl={siteUrl}
+            draggingAllowed={!searching}
           />
         ))}
       </Stack>
 
       {/* Only shown mid-drag: dropping here detaches the branch to the top level. */}
-      {dragged !== null && (
+      {dragged !== null && !searching && (
         <Paper
           withBorder
           p="md"
@@ -239,10 +279,15 @@ interface BranchProps {
   onDelete: (n: CategoryNode) => void;
   onView: (n: CategoryNode) => void;
   siteUrl: string;
+  /** Search terms, for highlighting. Empty when not searching. */
+  terms: string[];
+  draggingAllowed: boolean;
 }
 
 function Branch(props: BranchProps) {
-  const { node, depth, nodes, collapsed, onToggle, dragged, dropTarget, siteUrl } = props;
+  const {
+    node, depth, nodes, collapsed, onToggle, dragged, dropTarget, siteUrl, terms, draggingAllowed,
+  } = props;
 
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
@@ -250,7 +295,7 @@ function Branch(props: BranchProps) {
   // The whole subtree vanishes, not just the direct children.
   const hiddenCount = countDescendants(node);
   const isDragging = dragged === node.id;
-  const isValidTarget = dragged !== null && canDrop(nodes, dragged, node.id);
+  const isValidTarget = draggingAllowed && dragged !== null && canDrop(nodes, dragged, node.id);
   const isHovered = dropTarget === node.id && isValidTarget;
 
   // The two publishing flags, read off the border. Both off is its own colour rather than
@@ -268,7 +313,7 @@ function Branch(props: BranchProps) {
         withBorder
         padding="xs"
         ml={depth * 24}
-        draggable={true}
+        draggable={draggingAllowed}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';
           props.onDragStart(node.id);
@@ -289,7 +334,7 @@ function Branch(props: BranchProps) {
         }}
         style={{
           opacity: isDragging ? 0.4 : 1,
-          cursor: 'grab',
+          cursor: draggingAllowed ? 'grab' : 'default',
           // Teal, not blue: blue now means "off menu", and a drop target has to stay
           // legible against a tree full of them mid-drag.
           borderColor: isHovered ? 'var(--mantine-color-teal-5)' : stateColour,
@@ -323,14 +368,15 @@ function Branch(props: BranchProps) {
               onClick={(e) => { e.stopPropagation(); props.onView(node); }}
               style={{ cursor: 'pointer' }}
             >
-              <Text
+              <Highlight
                 fw={500}
                 c={node.isActive ? undefined : 'red'}
                 style={{ textDecorationStyle: 'dotted' }}
                 td="underline"
+                highlight={terms}
               >
                 {node.name}
-              </Text>
+              </Highlight>
             </UnstyledButton>
             <Tooltip label={`${siteUrl}/${node.pathSlug}`}>
               <Anchor
@@ -342,7 +388,9 @@ function Branch(props: BranchProps) {
                 onClick={(e) => e.stopPropagation()}
                 underline="always"
               >
-                <Code>{node.pathSlug}</Code>
+                <Code>
+                  <Highlight component="span" highlight={terms}>{node.pathSlug}</Highlight>
+                </Code>
               </Anchor>
             </Tooltip>
 

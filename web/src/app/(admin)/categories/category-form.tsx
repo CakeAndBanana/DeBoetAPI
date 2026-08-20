@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Alert, Button, Card, Group, Stack, Switch, Textarea, TextInput,
+  Button, Card, Group, Stack, Switch, Textarea, TextInput,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
@@ -16,11 +16,9 @@ interface Props {
   /** Present when editing. */
   id?: string;
   initial?: Partial<CategoryInput>;
-  /** Editing a category that has children warns about route rewrites. */
-  hasChildren?: boolean;
 }
 
-export function CategoryForm({ options, id, initial, hasChildren }: Props) {
+export function CategoryForm({ options, id, initial }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -62,15 +60,6 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
     <Card withBorder maw={640}>
       <form onSubmit={form.onSubmit(submit)}>
         <Stack>
-          {id && (
-            <Alert color="yellow" title="Changing the slug changes the URL">
-              The slug is this category&apos;s own segment of the route
-              {hasChildren ? ', and every category beneath it is prefixed by it' : ''}. Editing
-              it rewrites
-              {hasChildren ? ' those routes too' : ' the route'}, and existing links will break.
-            </Alert>
-          )}
-
           <TextInput label="Name" withAsterisk {...form.getInputProps('name')} />
 
           {/*

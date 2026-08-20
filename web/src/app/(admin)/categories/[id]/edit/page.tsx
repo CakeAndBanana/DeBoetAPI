@@ -24,7 +24,6 @@ export default async function EditCategoryPage({
       <CategoryForm
         id={id}
         options={options}
-        hasChildren={detail.children.length > 0}
         initial={{
           name: detail.category.name,
           slug: detail.category.slug,
