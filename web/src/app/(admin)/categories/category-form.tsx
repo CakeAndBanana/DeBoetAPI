@@ -3,14 +3,16 @@
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Alert, Button, Card, Group, Select, Stack, Switch, Textarea, TextInput,
+  Alert, Button, Card, Group, Stack, Switch, Textarea, TextInput,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
+import type { CategoryOption } from '@/lib/categories';
+import { CategoryPicker } from '@/components/category-picker';
 import { createCategory, updateCategory, type CategoryInput } from './actions';
 
 interface Props {
-  options: { value: string; label: string }[];
+  options: CategoryOption[];
   /** Present when editing. */
   id?: string;
   initial?: Partial<CategoryInput>;
@@ -70,12 +72,11 @@ export function CategoryForm({ options, id, initial, hasChildren }: Props) {
           <TextInput label="Name" withAsterisk {...form.getInputProps('name')} />
 
           {!id && (
-            <Select
+            <CategoryPicker
               label="Parent"
               placeholder="(root category)"
-              data={options}
-              clearable
-              searchable
+              description="Search by name or route."
+              options={options}
               {...form.getInputProps('parentId')}
             />
           )}

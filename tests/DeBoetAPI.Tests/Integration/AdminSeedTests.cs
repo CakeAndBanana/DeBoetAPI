@@ -81,8 +81,14 @@ public class AdminSeedTests(PostgresFixture postgres)
         await factory.SeedAdminAsync();
         using var client = factory.CreateClient();
 
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/auth/login",
-            new { email = "admin", password = "deboet" })).StatusCode);
+        var adminLogin = await client.PostAsJsonAsync("/api/v1/auth/login",
+            new { email = "admin", password = "deboet" });
+        Assert.Equal(HttpStatusCode.OK, adminLogin.StatusCode);
+
+        // Registration is admin-only now, so the call below has to be authenticated.
+        var adminTokens = (await adminLogin.Content.ReadFromJsonAsync<TokenPairResponse>())!;
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminTokens.AccessToken);
 
         var register = await client.PostAsJsonAsync("/api/v1/auth/register", new
         {

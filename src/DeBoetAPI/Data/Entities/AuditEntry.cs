@@ -5,6 +5,7 @@ public enum AuditedEntityType
 {
     Category,
     Item,
+    User,
 }
 
 public enum AuditAction
@@ -17,6 +18,11 @@ public enum AuditAction
     LinkAdded,
     LinkRemoved,
     CategoriesAssigned,
+    PasswordReset,
+    PasswordChanged,
+    RolesChanged,
+    Disabled,
+    Enabled,
 }
 
 /// <summary>

@@ -6,8 +6,10 @@ using DeBoetAPI.Features.Audit;
 using DeBoetAPI.Features.Auth;
 using DeBoetAPI.Features.Categories;
 using DeBoetAPI.Features.Items;
+using DeBoetAPI.Features.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -43,7 +45,10 @@ builder.Services.AddIdentityCore<AppUser>(options =>
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
     .AddRoles<IdentityRole<Guid>>()
-    .AddEntityFrameworkStores<AppDbContext>();
+    .AddEntityFrameworkStores<AppDbContext>()
+    // Required by GeneratePasswordResetTokenAsync, which the admin reset path uses. Without
+    // it the reset fails quietly and the old password keeps working.
+    .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<CategoryTreeService>();
@@ -76,7 +81,20 @@ builder.Services
     });
 
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy(AuthPolicies.Admin, policy => policy.RequireRole(AuthPolicies.AdminRole));
+    // Both policies also refuse anyone still on an admin-set password. Enforcing that here
+    // rather than only in the admin panel is the point: otherwise the temporary password
+    // would grant full API access to anyone willing to skip the UI.
+    .AddPolicy(AuthPolicies.Admin, policy => policy
+        .RequireRole(AuthPolicies.AdminRole)
+        .RequireAssertion(HasChangedPassword))
+    // Editor is satisfied by either role, so an admin is never refused something an editor
+    // may do.
+    .AddPolicy(AuthPolicies.Editor, policy => policy
+        .RequireRole(AuthPolicies.EditorRole, AuthPolicies.AdminRole)
+        .RequireAssertion(HasChangedPassword));
+
+static bool HasChangedPassword(AuthorizationHandlerContext context) =>
+    !context.User.HasClaim(c => c.Type == AuthClaims.MustChangePassword && c.Value == "true");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -188,5 +206,6 @@ app.MapAuthEndpoints();
 app.MapItemEndpoints();
 app.MapCategoryEndpoints();
 app.MapAuditEndpoints();
+app.MapUserEndpoints();
 
 app.Run();

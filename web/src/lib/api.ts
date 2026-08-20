@@ -1,6 +1,7 @@
 import { getIronSession } from 'iron-session';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { ADMIN_ROLE, mustChangePassword, rolesFrom, subjectFrom } from './claims';
 import { ApiError, messageFor, type ProblemDetails } from './problem';
 import { sessionOptions, type AdminSession } from './session';
 
@@ -52,6 +53,17 @@ export function applyTokens(session: AdminSession, tokens: TokenPair): void {
   session.accessToken = tokens.accessToken;
   session.refreshToken = tokens.refreshToken;
   session.accessExpiresAt = Date.parse(tokens.accessTokenExpiresAt);
+
+  // Re-read from the fresh token rather than trusting the stored copy: a refresh after the
+  // user changes their password is what lifts the diversion, and an admin reset is what
+  // reimposes it.
+  session.roles = rolesFrom(tokens.accessToken);
+  session.mustChangePassword = mustChangePassword(tokens.accessToken);
+  session.userId = subjectFrom(tokens.accessToken);
+}
+
+export function isAdmin(session: AdminSession): boolean {
+  return session.roles?.includes(ADMIN_ROLE) ?? false;
 }
 
 export async function login(emailOrUsername: string, password: string): Promise<TokenPair> {

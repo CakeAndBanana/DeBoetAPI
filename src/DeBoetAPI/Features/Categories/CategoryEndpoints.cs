@@ -9,13 +9,14 @@ using Microsoft.EntityFrameworkCore;
 namespace DeBoetAPI.Features.Categories;
 
 /// <summary>
-/// Reads are open to any authenticated caller; every mutation requires the Admin role
+/// Reads are anonymous; every mutation requires the Editor role, which Admins also satisfy.
 /// </summary>
 public static class CategoryEndpoints
 {
     /// <summary>
-    /// Maps the category endpoints to the specified EndpointRouteBuilder. 
-    /// Read endpoints are open to any authenticated caller; write endpoints require the Admin role.
+    /// Maps the category endpoints to the specified EndpointRouteBuilder.
+    /// Read endpoints are anonymous. Every write — including move, delete and secondary links —
+    /// requires the Editor policy, which an Admin also satisfies.
     /// </summary>
     /// <param name="app">The endpoint route builder.</param>
     /// <returns>The updated endpoint route builder.</returns>
@@ -30,16 +31,16 @@ public static class CategoryEndpoints
         reads.MapGet("/{idOrSlug}", GetAsync).WithName("GetCategory");
         reads.MapGet("/{id:guid}/items", GetItemsAsync).WithName("GetCategoryItems");
 
-        var writes = app.MapGroup("/api/v1/categories")
+        var edits = app.MapGroup("/api/v1/categories")
             .WithTags("Categories")
-            .RequireAuthorization(AuthPolicies.Admin);
+            .RequireAuthorization(AuthPolicies.Editor);
 
-        writes.MapPost("/", CreateAsync).WithName("CreateCategory");
-        writes.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateCategory");
-        writes.MapPost("/{id:guid}/move", MoveAsync).WithName("MoveCategory");
-        writes.MapDelete("/{id:guid}", DeleteAsync).WithName("DeleteCategory");
-        writes.MapPost("/{id:guid}/links", AddLinkAsync).WithName("AddCategoryLink");
-        writes.MapDelete("/{id:guid}/links/{parentId:guid}", RemoveLinkAsync).WithName("RemoveCategoryLink");
+        edits.MapPost("/", CreateAsync).WithName("CreateCategory");
+        edits.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateCategory");
+        edits.MapPost("/{id:guid}/move", MoveAsync).WithName("MoveCategory");
+        edits.MapDelete("/{id:guid}", DeleteAsync).WithName("DeleteCategory");
+        edits.MapPost("/{id:guid}/links", AddLinkAsync).WithName("AddCategoryLink");
+        edits.MapDelete("/{id:guid}/links/{parentId:guid}", RemoveLinkAsync).WithName("RemoveCategoryLink");
 
         return app;
     }
@@ -419,7 +420,8 @@ public static class CategoryEndpoints
         CategoryNode Build(Category c)
         {
             return new(
-            c.Id, c.Name, c.Slug, c.PathSlug, c.Depth, c.SortOrder, c.IsActive, c.IsMenu,
+            c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle ?? c.Name, c.MetaDescription,
+            c.Depth, c.SortOrder, c.IsActive, c.IsMenu,
             childrenByParent.TryGetValue(c.Id, out var kids)
                 ? kids.Select(Build).ToList()
                 : []);

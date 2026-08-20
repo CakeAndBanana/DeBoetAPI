@@ -55,9 +55,7 @@ public abstract class CategoryTestBase(PostgresFixture postgres) : IAsyncLifetim
 
     private async Task<HttpClient> RegisterAndSignInAsync()
     {
-        var client = _factory.CreateClient();
-
-        var response = await client.PostAsJsonAsync("/api/v1/auth/register", new
+        var response = await Admin.PostAsJsonAsync("/api/v1/auth/register", new
         {
             email = $"user-{Guid.NewGuid():N}@example.com",
             password = "Passw0rd!",
@@ -66,9 +64,76 @@ public abstract class CategoryTestBase(PostgresFixture postgres) : IAsyncLifetim
 
         response.EnsureSuccessStatusCode();
         var tokens = (await response.Content.ReadFromJsonAsync<TokenPairResponse>())!;
+
+        return ClientWithToken(tokens.AccessToken);
+    }
+
+    /// <summary>A client authenticated as whoever the access token belongs to.</summary>
+    protected HttpClient ClientWithToken(string accessToken)
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return client;
+    }
+
+    /// <summary>An unauthenticated client, for driving a fresh sign-in.</summary>
+    protected HttpClient NewClient() => _factory.CreateClient();
+
+    /// <summary>
+    /// Provisions an account through the real admin API and signs in as it, so tests exercise
+    /// the same path an administrator would.
+    /// </summary>
+    protected async Task<(HttpClient Client, Guid Id, string UserName, string Password)> CreateUserAndSignInAsync(
+        string? role = null,
+        bool changePasswordFirst = true)
+    {
+        var userName = $"user{Guid.NewGuid():N}"[..16];
+        const string initialPassword = "Initial!Pass1";
+
+        var created = await Admin.PostAsJsonAsync("/api/v1/users", new
+        {
+            userName,
+            email = $"{userName}@example.com",
+            displayName = userName,
+            password = initialPassword,
+            roles = role is null ? Array.Empty<string>() : [role],
+        });
+        created.EnsureSuccessStatusCode();
+        var id = (await created.Content.ReadFromJsonAsync<ManagedUser>())!.Id;
+
+        var password = initialPassword;
+        var client = await SignInAsync(userName, password);
+
+        if (changePasswordFirst)
+        {
+            const string chosen = "Chosen!Pass1";
+            var changed = await client.PostAsJsonAsync("/api/v1/auth/change-password", new
+            {
+                currentPassword = password,
+                newPassword = chosen,
+            });
+            changed.EnsureSuccessStatusCode();
+
+            password = chosen;
+            client.Dispose();
+            client = await SignInAsync(userName, password);
+        }
+
+        return (client, id, userName, password);
+    }
+
+    protected async Task<HttpClient> SignInAsync(string userName, string password)
+    {
+        var client = _factory.CreateClient();
+        var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = userName, password });
+        response.EnsureSuccessStatusCode();
+
+        var tokens = (await response.Content.ReadFromJsonAsync<TokenPairResponse>())!;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         return client;
     }
+
+    protected sealed record ManagedUser(Guid Id, string UserName, string[] Roles, bool MustChangePassword, bool IsDisabled);
 
     protected async Task<CategoryResponse> CreateCategoryAsync(
         string name,

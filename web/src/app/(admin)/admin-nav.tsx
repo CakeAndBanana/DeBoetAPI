@@ -8,7 +8,7 @@ import { NavLink } from '@mantine/core';
  * Client component on purpose: Mantine's NavLink is a client component, and React refuses to
  * let a Server Component pass it a function prop like `component={Link}`.
  */
-export function AdminNav() {
+export function AdminNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -19,12 +19,23 @@ export function AdminNav() {
         label="Categories"
         active={pathname.startsWith('/categories')}
       />
-      <NavLink
-        component={Link}
-        href="/audit"
-        label="Change history"
-        active={pathname.startsWith('/audit')}
-      />
+      {/* Presentation only — the API refuses editors regardless of what is rendered. */}
+      {isAdmin && (
+        <>
+          <NavLink
+            component={Link}
+            href="/users"
+            label="Users"
+            active={pathname.startsWith('/users')}
+          />
+          <NavLink
+            component={Link}
+            href="/audit"
+            label="Change history"
+            active={pathname.startsWith('/audit')}
+          />
+        </>
+      )}
     </>
   );
 }

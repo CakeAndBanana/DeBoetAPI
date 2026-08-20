@@ -65,9 +65,29 @@ elsewhere controlled by `OpenApi:Enabled` / `OPENAPI_ENABLED` — deliberately n
 environment, so docs can be on in Production without developer exception pages coming too.
 
 
-## The admin account
+## Users, roles and passwords
 
-On startup the API ensures an `Admin` role exists and seeds one administrator:
+There is no self-service password recovery anywhere in this system. An administrator resetting
+a password **is** the recovery path, so the admin account matters.
+
+### Roles
+
+| | Admin | Editor |
+|---|---|---|
+| Read categories and items | yes (anonymous, in fact) | yes |
+| Create and edit a category | yes | yes |
+| Move, delete, secondary links | yes | yes |
+| One category's history | yes | yes |
+| The whole change feed (`/audit`) | yes | no |
+| Manage users | yes | no |
+
+The `Editor` policy is satisfied by **Editor or Admin**, so an admin is never locked out of
+something an editor can do.
+
+### The seeded administrator
+
+On startup the API ensures the `Admin` and `Editor` roles exist and seeds one administrator —
+once, when the database is first created, not on every boot:
 
 | | |
 |---|---|
@@ -75,13 +95,45 @@ On startup the API ensures an `Admin` role exists and seeds one administrator:
 | Password | `deboet` |
 | Email | `admin@deboetapi.local` |
 
-Please change the password immediately after first login. 
-The admin account is **not** created on every startup, just the first time the database is created. 
-The admin account can be used to create other users and assign them the `Admin` role.
+Change that password immediately after first login. It is the one account exempt from the
+forced change below, because forcing it would lock out every existing deployment on upgrade.
+
+### Creating accounts
+
+`POST /auth/register` is **admin-only** — there is no public sign-up. In practice accounts are
+created through `POST /api/v1/users` (or the panel's **Users** screen), which takes the roles
+and an initial password and hands it to the new user directly.
+
+### The forced password change
+
+Any password an administrator sets — at creation or at reset — is temporary. The account
+carries `MustChangePassword` until the user replaces it via `POST /auth/change-password`.
+
+This is enforced by the **API**, not just the panel: while the flag is set the access token
+carries a `must_change_password` claim, and both the `Admin` and `Editor` policies refuse it.
+Such a token can do exactly three things — log in, read `/auth/me`, and change the password.
+
+Changing or resetting a password revokes every refresh token for that account, so sessions
+elsewhere die.
+
+> **Known limit.** Revoking refresh tokens does not invalidate an access token that has
+> already been issued, so a reset (or a role change) takes up to `Jwt:AccessTokenMinutes` —
+> 15 by default — to be felt everywhere. Shorten that value if the window matters to you.
+
+### Locking someone out
+
+`POST /api/v1/users/{id}/disable` and `/enable` use Identity's lockout, so a departing editor
+can be cut off without deleting an account the audit trail still points at. An admin cannot
+disable themselves or strip their own `Admin` role — on a single-admin install that would lock
+everyone out.
+
+Every one of these actions is written to the change history with who did it and when. Passwords
+are never recorded, not even in the summary.
 
 ## Admin panel
 
-A Next.js app in [web/](web/) for managing the category tree and reading the change history.
+A Next.js app in [web/](web/) for managing the category tree, the accounts that may edit it,
+and the change history.
 Runs as its own container beside the API; Caddy serves it on `ADMIN_DOMAIN`.
 
 ```bash

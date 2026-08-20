@@ -102,7 +102,16 @@ public class InfrastructureTests(PostgresFixture postgres)
     {
         await using var factory = new ApiFactory(postgres.ConnectionString);
         await factory.MigrateAsync();
+        await factory.SeedAdminAsync();
         using var client = factory.CreateClient();
+
+        // Registration is admin-only, so authenticate as the seeded admin first.
+        var adminLogin = await client.PostAsJsonAsync("/api/v1/auth/login",
+            new { email = "admin", password = "deboet" });
+        adminLogin.EnsureSuccessStatusCode();
+        var adminTokens = (await adminLogin.Content.ReadFromJsonAsync<DeBoetAPI.Features.Auth.TokenPairResponse>())!;
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminTokens.AccessToken);
 
         var response = await client.PostAsJsonAsync("/api/v1/auth/register", new
         {

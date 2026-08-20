@@ -30,10 +30,13 @@ public static class AuditEndpoints
             .WithSummary("Every recorded change, newest first.")
             .RequireAuthorization(AuthPolicies.Admin);
 
+        // One category's history follows the category write surface: whoever may reshape it
+        // may see who reshaped it. The unfiltered feed above stays with admins, since it spans
+        // user management too.
         app.MapGet("/api/v1/categories/{id:guid}/history", CategoryHistoryAsync)
             .WithTags("Categories")
             .WithName("GetCategoryHistory")
-            .RequireAuthorization(AuthPolicies.Admin);
+            .RequireAuthorization(AuthPolicies.Editor);
 
         app.MapGet("/api/v1/items/{id:guid}/history", ItemHistoryAsync)
             .WithTags("Items")

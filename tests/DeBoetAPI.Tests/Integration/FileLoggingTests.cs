@@ -82,6 +82,14 @@ public class FileLoggingTests(PostgresFixture postgres) : IAsyncLifetime
             await factory.SeedAdminAsync();
             using var client = factory.CreateClient();
 
+            // Registration is admin-only, so authenticate as the seeded admin first.
+            var adminLogin = await client.PostAsJsonAsync("/api/v1/auth/login",
+                new { email = "admin", password = "deboet" });
+            adminLogin.EnsureSuccessStatusCode();
+            var adminTokens = (await adminLogin.Content.ReadFromJsonAsync<DeBoetAPI.Features.Auth.TokenPairResponse>())!;
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", adminTokens.AccessToken);
+
             // Registering then replaying a refresh token makes TokenService log a warning —
             // a real application log line rather than request noise.
             var registered = await client.PostAsJsonAsync("/api/v1/auth/register", new

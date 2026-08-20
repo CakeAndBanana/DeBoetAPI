@@ -36,13 +36,14 @@ public static class AdminSeeder
     {
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
 
-        if (!await roleManager.RoleExistsAsync(AuthPolicies.AdminRole))
+        // Both roles must exist before anyone can be assigned one.
+        foreach (var role in AuthPolicies.AssignableRoles)
         {
-            await roleManager.CreateAsync(new IdentityRole<Guid>(AuthPolicies.AdminRole)
+            if (!await roleManager.RoleExistsAsync(role))
             {
-                Id = Guid.CreateVersion7(),
-            });
-            logger.LogInformation("Created {Role} role", AuthPolicies.AdminRole);
+                await roleManager.CreateAsync(new IdentityRole<Guid>(role) { Id = Guid.CreateVersion7() });
+                logger.LogInformation("Created {Role} role", role);
+            }
         }
 
         if (!environment.IsDevelopment() && options.Password == AdminSeedOptions.DefaultPassword)

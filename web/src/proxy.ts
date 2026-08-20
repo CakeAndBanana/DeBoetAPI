@@ -17,7 +17,9 @@ import { sessionOptions, type AdminSession } from '@/lib/session';
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
   const session = await getIronSession<AdminSession>(request, response, sessionOptions());
-  const onLoginPage = request.nextUrl.pathname === '/login';
+  const path = request.nextUrl.pathname;
+  const onLoginPage = path === '/login';
+  const onChangePasswordPage = path === '/change-password';
 
   if (!session.refreshToken) {
     return onLoginPage ? response : redirectToLogin(request, response);
@@ -36,6 +38,18 @@ export async function proxy(request: NextRequest) {
 
     applyTokens(session, tokens);
     await session.save();
+  }
+
+  // An account on an admin-set password can do nothing else until it chooses its own, so
+  // every route funnels to the change screen. The API enforces the same rule, so this is
+  // signposting rather than the security boundary.
+  if (session.mustChangePassword && !onChangePasswordPage) {
+    return redirectTo(request, '/change-password', response);
+  }
+
+  if (onChangePasswordPage && !session.mustChangePassword) {
+    // Reachable voluntarily, but not worth landing on straight after signing in.
+    return response;
   }
 
   if (onLoginPage) {

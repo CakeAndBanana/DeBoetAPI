@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server';
 import { applyTokens, getSession, login } from '@/lib/api';
 import { ApiError } from '@/lib/problem';
-import { ADMIN_ROLE, rolesFrom } from '@/lib/claims';
+import { ADMIN_ROLE, EDITOR_ROLE, mustChangePassword, rolesFrom } from '@/lib/claims';
 
-/**
- * Exchanges credentials for tokens and seals them into the session cookie. A Route Handler
- * rather than a Server Action because this is where cookies may be written, and the tokens
- * must never travel to the browser.
- */
+
 export async function POST(request: Request) {
   const { username, password } = (await request.json()) as {
     username?: string;
@@ -21,11 +17,10 @@ export async function POST(request: Request) {
   try {
     const tokens = await login(username, password);
 
-    // Refuse non-admins here rather than signing them in and letting every page 403. The
-    // API still enforces this on each request; this only produces a clear message.
-    if (!rolesFrom(tokens.accessToken).includes(ADMIN_ROLE)) {
+    const roles = rolesFrom(tokens.accessToken);
+    if (!roles.includes(ADMIN_ROLE) && !roles.includes(EDITOR_ROLE)) {
       return NextResponse.json(
-        { error: 'That account is not an administrator.' },
+        { error: 'That account has no access to the admin panel.' },
         { status: 403 },
       );
     }
@@ -33,6 +28,8 @@ export async function POST(request: Request) {
     const session = await getSession();
     applyTokens(session, tokens);
     session.displayName = username;
+    session.roles = roles;
+    session.mustChangePassword = mustChangePassword(tokens.accessToken);
     await session.save();
 
     return new NextResponse(null, { status: 204 });

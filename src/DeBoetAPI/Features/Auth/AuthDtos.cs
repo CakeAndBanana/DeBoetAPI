@@ -39,4 +39,20 @@ public sealed record TokenPairResponse(
     string RefreshToken,
     DateTimeOffset RefreshTokenExpiresAt);
 
-public sealed record UserResponse(Guid Id, string Email, string DisplayName, DateTimeOffset CreatedAt);
+public sealed record UserResponse(
+    Guid Id,
+    string Email,
+    string UserName,
+    string DisplayName,
+    IReadOnlyList<string> Roles,
+    bool MustChangePassword,
+    DateTimeOffset CreatedAt);
+
+public sealed record ChangePasswordRequest
+{
+    [Required]
+    public string CurrentPassword { get; init; } = string.Empty;
+
+    [Required, MinLength(8), MaxLength(128)]
+    public string NewPassword { get; init; } = string.Empty;
+}

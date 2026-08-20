@@ -48,10 +48,23 @@ export function getAudit(filters: AuditFilters = {}) {
   return apiFetch<Paged<AuditEntry>>(`/api/v1/audit?${params}`);
 }
 
-/** Flattens the tree for parent pickers, indenting names by depth. */
-export function flatten(nodes: CategoryNode[], depth = 0): { value: string; label: string }[] {
+export interface CategoryOption {
+  value: string;
+  label: string;
+  /** The full route, carried so the picker can search and disambiguate by it. */
+  pathSlug: string;
+}
+
+/**
+ * Flattens the tree for parent pickers, indenting names by depth.
+ *
+ * The route travels with each option because names repeat across branches — several
+ * “Lights” under different parents are indistinguishable by name alone once the list is
+ * long enough to need searching.
+ */
+export function flatten(nodes: CategoryNode[], depth = 0): CategoryOption[] {
   return nodes.flatMap((node) => [
-    { value: node.id, label: `${'— '.repeat(depth)}${node.name}` },
+    { value: node.id, label: `${'— '.repeat(depth)}${node.name}`, pathSlug: node.pathSlug },
     ...flatten(node.children ?? [], depth + 1),
   ]);
 }

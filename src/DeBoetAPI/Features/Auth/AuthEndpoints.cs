@@ -1,6 +1,7 @@
 using System.Security.Claims;
-using DeBoetAPI.Data.Entities;
 using DeBoetAPI.Common;
+using DeBoetAPI.Data;
+using DeBoetAPI.Data.Entities;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 
@@ -14,7 +15,10 @@ public static class AuthEndpoints
             .WithTags("Auth")
             .RequireRateLimiting(RateLimitPolicies.Auth);
 
+        // Accounts are provisioned by administrators; there is no public sign-up and no
+        // self-service password recovery.
         group.MapPost("/register", RegisterAsync)
+            .RequireAuthorization(AuthPolicies.Admin)
             .WithName("Register")
             .WithSummary("Create an account and receive a token pair.");
 
@@ -29,6 +33,14 @@ public static class AuthEndpoints
         group.MapPost("/logout", LogoutAsync)
             .WithName("Logout")
             .WithSummary("Revoke a refresh token.");
+
+        // Deliberately RequireAuthorization() and not the Admin/Editor policies: those refuse
+        // anyone still on an admin-set password, which would make this endpoint — the only way
+        // out of that state — unreachable.
+        group.MapPost("/change-password", ChangePasswordAsync)
+            .WithName("ChangePassword")
+            .WithSummary("Change your own password, clearing any forced-change flag.")
+            .RequireAuthorization();
 
         group.MapGet("/me", GetMeAsync)
             .WithName("GetCurrentUser")
@@ -110,9 +122,58 @@ public static class AuthEndpoints
     {
         var user = await userManager.FindByIdAsync(principal.GetUserId().ToString());
 
-        return user is null
-            ? TypedResults.Unauthorized()
-            : TypedResults.Ok(new UserResponse(user.Id, user.Email ?? string.Empty, user.DisplayName, user.CreatedAt));
+        if (user is null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        var roles = await userManager.GetRolesAsync(user);
+
+        return TypedResults.Ok(new UserResponse(
+            user.Id,
+            user.Email ?? string.Empty,
+            user.UserName ?? string.Empty,
+            user.DisplayName,
+            roles.ToList(),
+            user.MustChangePassword,
+            user.CreatedAt));
+    }
+
+    /// <summary>
+    /// Changes the caller's own password. Every other session is revoked, so credentials that
+    /// were shared or intercepted stop working the moment the real owner takes control.
+    /// </summary>
+    private static async Task<Results<NoContent, ValidationProblem, UnauthorizedHttpResult>> ChangePasswordAsync(
+        ChangePasswordRequest request,
+        ClaimsPrincipal principal,
+        UserManager<AppUser> userManager,
+        TokenService tokens,
+        AuditLog audit,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(principal.GetUserId().ToString());
+        if (user is null)
+        {
+            return TypedResults.Unauthorized();
+        }
+
+        var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            return TypedResults.ValidationProblem(ToErrorDictionary(result));
+        }
+
+        user.MustChangePassword = false;
+        await userManager.UpdateAsync(user);
+
+        // Note: no password material in the audit trail, ever.
+        audit.RecordUser(user, AuditAction.PasswordChanged);
+        await db.SaveChangesAsync(ct);
+
+        await tokens.RevokeAllForUserAsync(user.Id, ct);
+
+        return TypedResults.NoContent();
     }
 
     private static Dictionary<string, string[]> ToErrorDictionary(IdentityResult result) =>

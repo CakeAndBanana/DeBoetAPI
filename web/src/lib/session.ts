@@ -6,6 +6,12 @@ export interface AdminSession {
   /** Epoch millis. Used to refresh slightly early rather than waiting for a 401. */
   accessExpiresAt?: number;
   displayName?: string;
+  /** Drives which controls the panel renders. The API enforces the real thing. */
+  roles?: string[];
+  /** While true, every route diverts to the change-password screen. */
+  mustChangePassword?: boolean;
+  /** The signed-in user's id, so the UI can mark their own row. */
+  userId?: string;
 }
 
 export function sessionOptions(): SessionOptions {

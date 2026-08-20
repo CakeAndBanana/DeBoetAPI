@@ -1,7 +1,7 @@
 import {
   AppShell, AppShellHeader, AppShellMain, AppShellNavbar, Button, Group, Text,
 } from '@mantine/core';
-import { getSession } from '@/lib/api';
+import { getSession, isAdmin } from '@/lib/api';
 import { AdminNav } from './admin-nav';
 
 /**
@@ -19,7 +19,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <Group h="100%" px="md" justify="space-between">
           <Text fw={600}>DeBoet Admin</Text>
           <Group gap="sm">
-            <Text size="sm" c="dimmed">{session.displayName ?? 'signed in'}</Text>
+            <Text size="sm" c="dimmed">
+              {session.displayName ?? 'signed in'}
+              {isAdmin(session) ? ' (admin)' : ' (editor)'}
+            </Text>
+            {/* component="a", not component={Link}: a Server Component may not pass a
+                function prop to a client component like Button. */}
+            <Button component="a" href="/change-password" variant="subtle" size="compact-sm">
+              Password
+            </Button>
             {/* A real form post, so signing out also revokes the refresh token server-side. */}
             <form action="/api/auth/logout" method="post">
               <Button type="submit" variant="subtle" size="compact-sm">Sign out</Button>
@@ -29,7 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </AppShellHeader>
 
       <AppShellNavbar p="xs">
-        <AdminNav />
+        <AdminNav isAdmin={isAdmin(session)} />
       </AppShellNavbar>
 
       <AppShellMain>{children}</AppShellMain>

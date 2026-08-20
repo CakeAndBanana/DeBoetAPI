@@ -132,6 +132,12 @@ public sealed class TokenService(
             new("display_name", user.DisplayName),
         };
 
+        if (user.MustChangePassword)
+        {
+            // Only emitted when true; the policies test for its presence.
+            claims.Add(new Claim(AuthClaims.MustChangePassword, "true"));
+        }
+
         claims.AddRange((await userManager.GetRolesAsync(user))
             .Select(r => new Claim(AuthClaims.Role, r)));
 

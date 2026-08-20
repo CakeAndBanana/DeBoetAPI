@@ -12,6 +12,11 @@ const COLOURS: Record<string, string> = {
   LinkAdded: 'teal',
   LinkRemoved: 'yellow',
   CategoriesAssigned: 'cyan',
+  PasswordReset: 'orange',
+  PasswordChanged: 'blue',
+  RolesChanged: 'grape',
+  Disabled: 'red',
+  Enabled: 'green',
 };
 
 /**

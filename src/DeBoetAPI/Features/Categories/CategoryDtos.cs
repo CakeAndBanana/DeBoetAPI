@@ -95,6 +95,8 @@ public sealed record CategoryNode(
     string Name,
     string Slug,
     string PathSlug,
+    string MetaTitle,
+    string? MetaDescription,
     int Depth,
     int SortOrder,
     bool IsActive,

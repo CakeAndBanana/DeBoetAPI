@@ -25,7 +25,7 @@ public class AuthEndpointsTests(PostgresFixture postgres) : IntegrationTestBase(
         var email = $"dupe-{Guid.NewGuid():N}@example.com";
         await RegisterAsync(email);
 
-        var response = await Client.PostAsJsonAsync("/api/v1/auth/register", new
+        var response = await Admin.PostAsJsonAsync("/api/v1/auth/register", new
         {
             email,
             password = "Passw0rd!",
@@ -38,7 +38,7 @@ public class AuthEndpointsTests(PostgresFixture postgres) : IntegrationTestBase(
     [Fact]
     public async Task Register_RejectsInvalidPayload()
     {
-        var response = await Client.PostAsJsonAsync("/api/v1/auth/register", new
+        var response = await Admin.PostAsJsonAsync("/api/v1/auth/register", new
         {
             email = "not-an-email",
             password = "short",

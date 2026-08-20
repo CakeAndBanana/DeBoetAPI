@@ -3,28 +3,32 @@
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
-  ActionIcon, Badge, Box, Button, Card, Code, Group, Modal, Paper, Select, Stack, Text, Tooltip,
+  ActionIcon, Badge, Box, Button, Card, Code, Group, Modal, Paper, Stack, Text, Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconArrowsMove, IconChevronDown, IconChevronRight, IconGripVertical, IconHistory,
   IconPencil, IconPlus, IconTrash,
 } from '@tabler/icons-react';
-import type { CategoryNode } from '@/lib/categories';
-import { canDrop, countDescendants } from '@/lib/tree-utils';
+import type { CategoryNode, CategoryOption } from '@/lib/categories';
+import { canDrop, collectSubtreeIds, countDescendants, findNode } from '@/lib/tree-utils';
+import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
 
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
 
 interface Props {
   nodes: CategoryNode[];
-  options: { value: string; label: string }[];
+  options: CategoryOption[];
 }
 
 export function CategoryTree({ nodes, options }: Props) {
   const [moving, setMoving] = useState<CategoryNode | null>(null);
   const [deleting, setDeleting] = useState<CategoryNode | null>(null);
   const [newParent, setNewParent] = useState<string | null>(null);
+  const movingSubtree = moving
+    ? collectSubtreeIds(findNode(nodes, moving.id) ?? moving)
+    : undefined;
   const [pending, startTransition] = useTransition();
 
   // Remembered because the whole tree re-renders after every mutation; without this,
@@ -33,10 +37,13 @@ export function CategoryTree({ nodes, options }: Props) {
   const [dragged, setDragged] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null | undefined>(undefined);
 
-  // Read on mount rather than during render, so server and client markup match.
+  // Read on mount rather than during render, so server and client markup match. Seeding the
+  // state initialiser instead would make the first client render disagree with the server's,
+  // which is the mismatch this effect exists to avoid — so the lint rule is waived here.
   useEffect(() => {
     try {
       const stored = localStorage.getItem(COLLAPSED_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (stored) setCollapsed(new Set(JSON.parse(stored) as string[]));
     } catch {
       // A corrupt entry should not stop the page rendering.
@@ -156,14 +163,17 @@ export function CategoryTree({ nodes, options }: Props) {
           <Text size="sm" c="dimmed">
             Everything beneath it moves too, and every descendant route is rewritten.
           </Text>
-          <Select
+          {/*
+            Only categories outside the moving branch are offered. The API rejects a move into
+            one's own subtree with a 409, so listing those would just be a dead end.
+          */}
+          <CategoryPicker
             label="New parent"
             placeholder="(make it a root category)"
-            data={options.filter((o) => o.value !== moving?.id)}
+            options={options}
+            exclude={movingSubtree}
             value={newParent}
             onChange={setNewParent}
-            clearable
-            searchable
           />
           <Button
             loading={pending}
@@ -222,7 +232,7 @@ interface BranchProps {
 }
 
 function Branch(props: BranchProps) {
-  const { node, depth, nodes, collapsed, onToggle, dragged, dropTarget } = props;
+  const { node, depth, nodes, collapsed, onToggle, dragged, dropTarget} = props;
 
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
@@ -239,7 +249,7 @@ function Branch(props: BranchProps) {
         withBorder
         padding="xs"
         ml={depth * 24}
-        draggable
+        draggable={true}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';
           props.onDragStart(node.id);
@@ -261,8 +271,6 @@ function Branch(props: BranchProps) {
         style={{
           opacity: isDragging ? 0.4 : 1,
           cursor: 'grab',
-          // Inactive categories are called out in red. The badge stays, so the state is never
-          // conveyed by colour alone.
           borderColor: isHovered
             ? 'var(--mantine-color-blue-5)'
             : node.isActive
@@ -271,7 +279,7 @@ function Branch(props: BranchProps) {
           background: isHovered ? 'var(--mantine-color-blue-light)' : undefined,
         }}
       >
-        <Group justify="space-between" wrap="nowrap">
+        <Group justify="space-between" wrap="nowrap" gap="md">
           <Group gap="xs" wrap="nowrap">
             <IconGripVertical size={16} style={{ opacity: 0.4, flexShrink: 0 }} />
 
@@ -300,6 +308,29 @@ function Branch(props: BranchProps) {
             )}
           </Group>
 
+          {/*
+            The SEO fields, between the name and the actions, so they can be scanned down the
+            tree without opening each editor. minWidth 0 lets this column be the one that
+            shrinks when the row is tight, and both lines truncate — a meta description runs
+            to 2000 characters. The full text is on the title attribute.
+          */}
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <Text size="xs" truncate title={node.metaTitle}>
+              <Text span size="xs" c="dimmed">title&ensp;</Text>
+              {node.metaTitle}
+            </Text>
+            <Text
+              size="xs"
+              truncate
+              c={node.metaDescription ? undefined : 'dimmed'}
+              fs={node.metaDescription ? undefined : 'italic'}
+              title={node.metaDescription ?? undefined}
+            >
+              <Text span size="xs" c="dimmed" fs="normal">desc&ensp;</Text>
+              {node.metaDescription ?? 'none'}
+            </Text>
+          </Box>
+
           {/* draggable={false} so pressing a button never starts a drag. */}
           <Group gap={4} wrap="nowrap" draggable={false} onDragStart={(e) => e.preventDefault()}>
             <Tooltip label="Add child">
@@ -312,21 +343,21 @@ function Branch(props: BranchProps) {
                 <IconPencil size={16} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="History">
-              <ActionIcon component={Link} href={`/categories/${node.id}/history`} variant="subtle">
-                <IconHistory size={16} />
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Move">
-              <ActionIcon variant="subtle" onClick={() => props.onMove(node)}>
-                <IconArrowsMove size={16} />
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Delete">
-              <ActionIcon variant="subtle" color="red" onClick={() => props.onDelete(node)}>
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Tooltip>
+              <Tooltip label="History">
+                <ActionIcon component={Link} href={`/categories/${node.id}/history`} variant="subtle">
+                  <IconHistory size={16} />
+                </ActionIcon>
+              </Tooltip>
+                <Tooltip label="Move">
+                  <ActionIcon variant="subtle" onClick={() => props.onMove(node)}>
+                    <IconArrowsMove size={16} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label="Delete">
+                  <ActionIcon variant="subtle" color="red" onClick={() => props.onDelete(node)}>
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Tooltip>
           </Group>
         </Group>
       </Card>
