@@ -98,3 +98,37 @@ export function filterTree(nodes: CategoryNode[], terms: string[]): CategoryNode
 export function countNodes(nodes: CategoryNode[]): number {
   return nodes.reduce((total, node) => total + 1 + countNodes(node.children ?? []), 0);
 }
+
+/** The bit of the DOM the drop hit-test needs, so the logic can be exercised without one. */
+export interface Hit {
+  closest(selector: string): { getAttribute(name: string): string | null } | null;
+}
+
+export interface DropTarget {
+  /** The category being dropped onto; null means "make it a root". */
+  id: string | null;
+  /** Whether the move is allowed, and so whether to highlight and accept it. */
+  valid: boolean;
+}
+
+/**
+ * Turns whatever sits under the pointer into a drop decision.
+ *
+ * Separated from the tree component because it is the half of dragging that can be wrong
+ * silently: a renamed data attribute or a missed `closest` would simply stop every drop
+ * working, with nothing to show for it.
+ */
+export function dropTargetFrom(
+  element: Hit | null,
+  nodes: CategoryNode[],
+  sourceId: string | null,
+): DropTarget {
+  if (!element || !sourceId) return { id: null, valid: false };
+
+  // The root zone wins: it sits above the tree while a drag is in progress.
+  if (element.closest('[data-root-drop]')) return { id: null, valid: true };
+
+  const id = element.closest('[data-category-id]')?.getAttribute('data-category-id') ?? null;
+
+  return { id, valid: !!id && canDrop(nodes, sourceId, id) };
+}

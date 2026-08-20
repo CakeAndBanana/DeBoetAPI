@@ -51,14 +51,8 @@ public sealed record ManagedUserResponse(
     bool IsDisabled,
     DateTimeOffset CreatedAt);
 
-/// <summary>
-/// Account administration. Every route is Admin-only, and the Admin policy additionally
-/// refuses anyone still on an admin-set password — so a freshly provisioned admin cannot
-/// provision others until they have set their own password.
-/// </summary>
 public static class UserEndpoints
 {
-    /// <summary>Far enough out to be permanent in practice; Identity has no "disabled" flag of its own.</summary>
     private static readonly DateTimeOffset DisabledUntil = new(9999, 12, 31, 23, 59, 59, TimeSpan.Zero);
 
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
@@ -131,8 +125,6 @@ public static class UserEndpoints
             UserName = request.UserName,
             Email = request.Email,
             DisplayName = request.DisplayName,
-            // The admin knows this password, so it is a shared secret until the owner replaces
-            // it. The policies refuse everything else until they do.
             MustChangePassword = true,
         };
 
@@ -147,7 +139,6 @@ public static class UserEndpoints
             await userManager.AddToRolesAsync(user, request.Roles);
         }
 
-        // No password material in the trail, only the fact and the roles granted.
         audit.RecordUser(user, AuditAction.Created,
             request.Roles.Count == 0 ? "no roles" : $"roles: {string.Join(", ", request.Roles)}");
         await db.SaveChangesAsync(ct);
@@ -177,8 +168,6 @@ public static class UserEndpoints
             return TypedResults.NotFound();
         }
 
-        // A single-admin install would otherwise be one careless click from having nobody who
-        // can administer it, and no way back short of database surgery.
         if (id == principal.GetUserId() && !request.Roles.Contains(AuthPolicies.AdminRole))
         {
             return TypedResults.Problem(
@@ -194,8 +183,6 @@ public static class UserEndpoints
             $"{Describe(current)} -> {Describe(request.Roles)}");
         await db.SaveChangesAsync(ct);
 
-        // Roles are baked into the access token, so existing sessions would keep the old set
-        // until it expires. Revoking refresh tokens caps that at one access-token lifetime.
         await tokens.RevokeAllForUserAsync(user.Id, ct);
 
         return TypedResults.Ok(await ToResponseAsync(user, userManager));
@@ -216,8 +203,6 @@ public static class UserEndpoints
             return TypedResults.NotFound();
         }
 
-        // Reset rather than change: an admin does not know the current password, which is the
-        // whole point of this endpoint existing.
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var result = await userManager.ResetPasswordAsync(user, token, request.NewPassword);
 
@@ -232,8 +217,6 @@ public static class UserEndpoints
         audit.RecordUser(user, AuditAction.PasswordReset);
         await db.SaveChangesAsync(ct);
 
-        // Whoever was signed in as this account loses their session — which is the point when
-        // the reset is a response to a compromise.
         await tokens.RevokeAllForUserAsync(user.Id, ct);
 
         return TypedResults.NoContent();
@@ -249,11 +232,6 @@ public static class UserEndpoints
         TokenService tokens, AuditLog audit, AppDbContext db, CancellationToken ct) =>
         SetEnabledAsync(id, true, principal, userManager, tokens, audit, db, ct);
 
-    /// <summary>
-    /// Accounts are disabled rather than deleted: the audit trail names them, and removing the
-    /// row would leave that history pointing at nothing. Implemented with Identity's lockout,
-    /// so it needs no schema of its own.
-    /// </summary>
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> SetEnabledAsync(
         Guid id,
         bool enabled,
@@ -306,7 +284,6 @@ public static class UserEndpoints
             user.CreatedAt);
     }
 
-    /// <summary>Rejects unknown role names rather than silently ignoring them.</summary>
     private static string? InvalidRole(IReadOnlyList<string> roles)
     {
         var unknown = roles.Except(AuthPolicies.AssignableRoles, StringComparer.Ordinal).ToList();

@@ -115,17 +115,20 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
   }
 
   /**
-   * Touch dragging.
+   * Dragging, for every input device.
    *
-   * HTML5 drag-and-drop does not fire on touch at all, so a finger could reorder nothing. The
-   * native path is left exactly as it was for mice — it gives real drag images and costs
-   * nothing — and pointer events cover touch and pen beside it. Both end in the same `drop`.
+   * Pointer events rather than HTML5 drag-and-drop. The native API does not fire on touch at
+   * all, and worse, leaving `draggable` on the card actively broke the gesture: a long press
+   * on a draggable element makes Android Chrome start its *own* drag, which fires
+   * pointercancel and tears down ours mid-move. One path, no `draggable` attribute, nothing to
+   * fight over — and a mouse behaves identically.
    *
    * The target is resolved with elementFromPoint rather than by listening on each card:
    * pointer capture sends every move to the handle that started the drag, so the cards below
    * never hear about it.
    */
-  const touchDrag = useRef<string | null>(null);
+  const dragging = useRef<string | null>(null);
+  const autoScroll = useRef(0);
 
   function targetUnder(x: number, y: number): { id: string | null; valid: boolean } {
     const element = document.elementFromPoint(x, y);
@@ -133,32 +136,57 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     if (element?.closest('[data-root-drop]')) return { id: null, valid: true };
 
     const id = element?.closest('[data-category-id]')?.getAttribute('data-category-id') ?? null;
-    const source = touchDrag.current;
+    const source = dragging.current;
     return { id, valid: !!id && !!source && canDrop(nodes, source, id) };
   }
 
-  function beginTouchDrag(event: React.PointerEvent, id: string) {
-    if (!draggingAllowed || event.pointerType === 'mouse') return;
+  /**
+   * Scrolls the page when the pointer nears an edge.
+   *
+   * Without this a phone drag can only reach what is already on screen: the gesture is
+   * captured, so the usual swipe-to-scroll is unavailable for as long as it lasts.
+   */
+  function edgeScroll(y: number) {
+    cancelAnimationFrame(autoScroll.current);
+    if (dragging.current === null) return;
 
-    // Claims the gesture from the page's own scrolling, which otherwise wins.
+    const margin = 72;
+    const speed = y < margin ? -12 : y > window.innerHeight - margin ? 12 : 0;
+    if (speed === 0) return;
+
+    const step = () => {
+      if (dragging.current === null) return;
+      window.scrollBy(0, speed);
+      autoScroll.current = requestAnimationFrame(step);
+    };
+    autoScroll.current = requestAnimationFrame(step);
+  }
+
+  function beginDrag(event: React.PointerEvent, id: string) {
+    if (!draggingAllowed) return;
+
+    // Claims the gesture from the page's own scrolling, which otherwise wins on touch.
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    touchDrag.current = id;
+    dragging.current = id;
     setDragged(id);
   }
 
-  function moveTouchDrag(event: React.PointerEvent) {
-    if (touchDrag.current === null) return;
+  function moveDrag(event: React.PointerEvent) {
+    if (dragging.current === null) return;
     event.preventDefault();
 
     const { id, valid } = targetUnder(event.clientX, event.clientY);
     setDropTarget(valid ? id : undefined);
+    edgeScroll(event.clientY);
   }
 
-  function endTouchDrag(event: React.PointerEvent) {
-    const source = touchDrag.current;
+  function endDrag(event: React.PointerEvent) {
+    const source = dragging.current;
     if (source === null) return;
-    touchDrag.current = null;
+
+    dragging.current = null;
+    cancelAnimationFrame(autoScroll.current);
 
     const { id, valid } = targetUnder(event.clientX, event.clientY);
     if (valid) {
@@ -170,8 +198,9 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     setDropTarget(undefined);
   }
 
-  function cancelTouchDrag() {
-    touchDrag.current = null;
+  function cancelDrag() {
+    dragging.current = null;
+    cancelAnimationFrame(autoScroll.current);
     setDragged(null);
     setDropTarget(undefined);
   }
@@ -239,19 +268,15 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             terms={terms}
             dragged={dragged}
             dropTarget={dropTarget}
-            onDragStart={setDragged}
-            onDragEnd={() => { setDragged(null); setDropTarget(undefined); }}
-            onDragOverNode={setDropTarget}
-            onDrop={drop}
             onMove={(n) => { setMoving(n); setNewParent(null); }}
             onDelete={setDeleting}
             onView={setViewing}
             siteUrl={siteUrl}
             draggingAllowed={draggingAllowed}
-            onTouchDragStart={beginTouchDrag}
-            onTouchDragMove={moveTouchDrag}
-            onTouchDragEnd={endTouchDrag}
-            onTouchDragCancel={cancelTouchDrag}
+            onDragBegin={beginDrag}
+            onDragMove={moveDrag}
+            onDragEnd={endDrag}
+            onDragCancel={cancelDrag}
             continues={[]}
           />
         ))}
@@ -269,8 +294,6 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             borderColor: dropTarget === null ? 'var(--mantine-color-teal-5)' : undefined,
             background: dropTarget === null ? 'var(--mantine-color-teal-light)' : undefined,
           }}
-          onDragOver={(e) => { e.preventDefault(); setDropTarget(null); }}
-          onDrop={(e) => { e.preventDefault(); drop(null); }}
         >
           <Text size="sm" c="dimmed" ta="center">{t('categories.dropAsRoot')}</Text>
         </Paper>
@@ -343,10 +366,6 @@ interface BranchProps {
   onToggle: (id: string) => void;
   dragged: string | null;
   dropTarget: string | null | undefined;
-  onDragStart: (id: string) => void;
-  onDragEnd: () => void;
-  onDragOverNode: (id: string) => void;
-  onDrop: (id: string) => void;
   onMove: (n: CategoryNode) => void;
   onDelete: (n: CategoryNode) => void;
   onView: (n: CategoryNode) => void;
@@ -354,10 +373,10 @@ interface BranchProps {
   /** Search terms, for highlighting. Empty when not searching. */
   terms: string[];
   draggingAllowed: boolean;
-  onTouchDragStart: (event: React.PointerEvent, id: string) => void;
-  onTouchDragMove: (event: React.PointerEvent) => void;
-  onTouchDragEnd: (event: React.PointerEvent) => void;
-  onTouchDragCancel: () => void;
+  onDragBegin: (event: React.PointerEvent, id: string) => void;
+  onDragMove: (event: React.PointerEvent) => void;
+  onDragEnd: (event: React.PointerEvent) => void;
+  onDragCancel: () => void;
   /**
    * One entry per indent column. Entry j says whether the ancestor sitting at column j has a
    * further sibling below, which is what decides whether its vertical guide keeps running past
@@ -402,31 +421,12 @@ function Branch(props: BranchProps) {
         withBorder
         padding="xs"
         data-category-id={node.id}
-        draggable={draggingAllowed}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = 'move';
-          props.onDragStart(node.id);
-        }}
-        onDragEnd={props.onDragEnd}
-        onDragOver={(e) => {
-          // preventDefault is what marks this element a valid drop target.
-          if (!isValidTarget) return;
-          e.preventDefault();
-          e.stopPropagation();
-          props.onDragOverNode(node.id);
-        }}
-        onDrop={(e) => {
-          if (!isValidTarget) return;
-          e.preventDefault();
-          e.stopPropagation();
-          props.onDrop(node.id);
-        }}
         style={{
           // Takes the width the guide columns leave behind.
           flex: 1,
           minWidth: 0,
           opacity: isDragging ? 0.4 : 1,
-          cursor: draggingAllowed ? 'grab' : 'default',
+          cursor: 'default',
           // Teal, not blue: blue now means "off menu", and a drop target has to stay
           // legible against a tree full of them mid-drag.
           borderColor: isHovered ? 'var(--mantine-color-teal-5)' : stateColour,
@@ -436,15 +436,15 @@ function Branch(props: BranchProps) {
         <Group justify="space-between" wrap="nowrap" gap="md">
           <Group gap="xs" wrap="nowrap">
             {/*
-              The touch handle. Deliberately just the grip and not the whole card: a finger
-              anywhere else must still be able to scroll the page, and touchAction none is what
-              stops the browser claiming the gesture first.
+              The drag handle, for mouse and finger alike. Deliberately just the grip and not
+              the whole card: a finger anywhere else must still scroll the page, and
+              touchAction none is what stops the browser claiming the gesture first.
             */}
             <span
-              onPointerDown={(e) => props.onTouchDragStart(e, node.id)}
-              onPointerMove={props.onTouchDragMove}
-              onPointerUp={props.onTouchDragEnd}
-              onPointerCancel={props.onTouchDragCancel}
+              onPointerDown={(e) => props.onDragBegin(e, node.id)}
+              onPointerMove={props.onDragMove}
+              onPointerUp={props.onDragEnd}
+              onPointerCancel={props.onDragCancel}
               style={{
                 display: 'inline-flex',
                 flexShrink: 0,

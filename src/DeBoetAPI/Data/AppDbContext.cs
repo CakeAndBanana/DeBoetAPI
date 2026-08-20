@@ -1,4 +1,5 @@
 using System.Text;
+using DeBoetAPI.Common;
 using DeBoetAPI.Data.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -6,9 +7,25 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DeBoetAPI.Data;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options)
+public class AppDbContext(DbContextOptions<AppDbContext> options, ChangeStream? changes = null)
     : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options)
 {
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var recorded = changes is null
+            ? []
+            : ChangeTracker.Entries<AuditEntry>()
+                .Where(e => e.State == EntityState.Added)
+                .Select(e => e.Entity)
+                .ToList();
+
+        var written = await base.SaveChangesAsync(cancellationToken);
+
+        changes?.Publish(recorded);
+
+        return written;
+    }
+
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     public DbSet<Item> Items => Set<Item>();

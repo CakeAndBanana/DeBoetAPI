@@ -1,8 +1,5 @@
 namespace DeBoetAPI.Data.Entities;
 
-/// <summary>
-/// A single link in a user's refresh-token chain.
-/// </summary>
 public class RefreshToken
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();

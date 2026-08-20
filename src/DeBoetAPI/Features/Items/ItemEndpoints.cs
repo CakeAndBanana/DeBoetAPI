@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace DeBoetAPI.Features.Items;
 
 /// <summary>
-/// Owned-CRUD template. Every query is filtered by the caller's id, so a user can never see
+/// This isnt really needed but maybe can be used in the furture
 /// </summary>
 public static class ItemEndpoints
 {
@@ -30,10 +30,6 @@ public static class ItemEndpoints
         return app;
     }
 
-    /// <summary>
-    /// Replaces the item's category set wholesale. Categories are a global taxonomy, but the
-    /// assignment belongs to the item, so this is owner-scoped rather than admin-only.
-    /// </summary>
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> SetCategoriesAsync(
         Guid id,
         SetItemCategoriesRequest request,

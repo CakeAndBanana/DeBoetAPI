@@ -7,11 +7,6 @@ public static class OpenApiSetup
 {
     private const string BearerScheme = "Bearer";
 
-    /// <summary>
-    /// Declares the JWT bearer scheme in the document and marks the operations that need it.
-    /// Without this the generated spec looks entirely public, so a client built from it —
-    /// Insomnia, Postman, Scalar's own "Authorize" button — has nowhere to put the token.
-    /// </summary>
     public static IServiceCollection AddAppOpenApi(this IServiceCollection services) =>
         services.AddOpenApi(options =>
         {
@@ -35,8 +30,6 @@ public static class OpenApiSetup
             {
                 var metadata = context.Description.ActionDescriptor.EndpointMetadata;
 
-                // AllowAnonymous wins over any authorize metadata on the surrounding group,
-                // which is exactly how the runtime resolves it too.
                 var isAnonymous = metadata.OfType<IAllowAnonymous>().Any();
                 var needsAuth = !isAnonymous && metadata.OfType<IAuthorizeData>().Any();
 

@@ -36,22 +36,17 @@ public class AuditEntry
 
     public Guid EntityId { get; set; }
 
-    /// <summary>The subject's display name at the moment of the change.</summary>
     public string EntityName { get; set; } = string.Empty;
 
-    /// <summary>Extra identifier where one exists — a category's full route, say. Null for items.</summary>
     public string? EntityPath { get; set; }
 
     public AuditAction Action { get; set; }
 
-    /// <summary>Null for changes made outside a request: startup seeding, migrations.</summary>
     public Guid? ChangedById { get; set; }
 
-    /// <summary>Snapshotted so the trail stays readable after an account is removed.</summary>
     public string ChangedByName { get; set; } = string.Empty;
 
     public DateTimeOffset ChangedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    /// <summary>Human-readable summary of what changed, e.g. "name: Old -> New".</summary>
     public string? Summary { get; set; }
 }

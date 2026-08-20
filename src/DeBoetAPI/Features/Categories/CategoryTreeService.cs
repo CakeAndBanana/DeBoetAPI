@@ -26,29 +26,10 @@ public sealed record CategoryResult(CategoryError Error, Category? Category = nu
     public static CategoryResult Fail(CategoryError error) => new(error);
 }
 
-/// <summary>
-/// Owns every mutation of the category hierarchy. <see cref="Category.Path"/> and
-/// <see cref="Category.Depth"/> are derived state — they are only ever written here, always
-/// inside a transaction, so a half-applied move cannot leave the tree inconsistent.
-/// </summary>
 public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 {
-    /// <summary>Path segment separator. Ids are wrapped in it so prefix matching cannot straddle two ids.</summary>
     private const char Separator = '/';
 
-    /// <summary>
-    /// Level delimiter in <see cref="Category.PathSlug"/>.
-    /// <para>
-    /// A segment derived from a name never contains one — "Christmas Lights" becomes
-    /// <c>christmaslights</c>. A segment typed by hand may, because real routes are not all
-    /// spelled the same way and the alternative is a category that cannot be addressed
-    /// correctly. Nothing splits a path slug on this character: lookups compare the whole
-    /// string and a subtree rewrite works by prefix length, so an interior dash changes
-    /// nothing here. It only means two different trees can spell the same route
-    /// (<c>a</c> + <c>b-c</c> versus <c>a-b</c> + <c>c</c>), which the unique index on
-    /// path_slug refuses as a duplicate.
-    /// </para>
-    /// </summary>
     public const char PathSlugSeparator = '-';
 
     public async Task<CategoryResult> CreateAsync(
@@ -85,9 +66,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             Name = name,
             Slug = finalSlug,
             PathSlug = pathSlug,
-            // Blank stays blank. A meta title that merely repeats the name tells a search
-            // engine nothing it cannot already read from the page, so there is no fallback —
-            // same reasoning as MetaDescription below.
             MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? null : metaTitle,
             MetaDescription = metaDescription,
             ParentId = parentId,
@@ -204,7 +182,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
                 return CategoryResult.Fail(CategoryError.ParentNotFound);
             }
 
-            // The target sitting inside this subtree would detach the branch from every root.
             if (IsDescendantOf(newParent, category))
             {
                 return CategoryResult.Fail(CategoryError.Cycle);
@@ -222,7 +199,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         var newPathSlug = BuildPathSlug(newParent, category.Slug);
         var depthDelta = (newParent is null ? 0 : newParent.Depth + 1) - category.Depth;
 
-        // Moving relocates the whole route, so the destination may already hold that name.
         if (newPathSlug != oldPathSlug
             && await db.Categories.AnyAsync(c => c.PathSlug == newPathSlug && c.Id != id, ct))
         {
@@ -242,7 +218,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 
         await RewriteSubtreeAsync(oldPath, newPath, depthDelta, ct);
 
-        // Scoped by the new id path: the statement above has already rewritten descendants.
         if (oldPathSlug != newPathSlug)
         {
             await RewriteSubtreeSlugsAsync(newPath, oldPathSlug, newPathSlug, ct);
@@ -362,12 +337,9 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 
     public async Task<CategoryError> RemoveLinkAsync(Guid childId, Guid parentId, CancellationToken ct)
     {
-        // Loaded before the delete so the audit entry can name both ends of the link.
         var child = await db.Categories.FirstOrDefaultAsync(c => c.Id == childId, ct);
         var parent = await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == parentId, ct);
 
-        // ExecuteDeleteAsync bypasses the change tracker and commits on its own, so it is
-        // wrapped alongside the audit write rather than left to run independently.
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         var removed = await db.CategoryLinks
@@ -429,11 +401,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
              """, ct);
     }
 
-    /// <summary>
-    /// Re-roots the slug routes of everything below a node whose own route just changed.
-    /// Scoped by the id path rather than by the slug prefix, so a sibling called
-    /// <c>christmasx</c> can never be swept up by a prefix match on <c>christmas</c>.
-    /// </summary>
     private async Task RewriteSubtreeSlugsAsync(
         string subtreeIdPath,
         string oldPathSlug,
@@ -460,24 +427,9 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             .Select(segment => Guid.TryParse(segment, out var id) ? id : Guid.Empty)
             .Where(id => id != Guid.Empty);
 
-    /// <summary>
-    /// Lowercases and strips everything that is not a letter or digit, so "Christmas Lights"
-    /// becomes "christmaslights". Separators are removed rather than replaced with a dash,
-    /// because the dash delimits levels in <see cref="Category.PathSlug"/> — a dash inside a
-    /// segment would make <c>christmas-christmaslights-icelights</c> impossible to split back.
-    /// </summary>
-    /// <summary>
-    /// The segment to store: a hand-written slug kept as close to what was typed as is safe,
-    /// or one derived from the name when none was given.
-    /// </summary>
     private static string ResolveSlug(string? slug, string name) =>
         string.IsNullOrWhiteSpace(slug) ? Slugify(name) : NormalizeSlug(slug);
 
-    /// <summary>
-    /// Cleans a slug someone typed, keeping hyphens. Anything that is not a letter, digit or
-    /// hyphen is dropped, runs of hyphens collapse, and the ends are trimmed — so
-    /// <c>"Ice -- Lights!"</c> becomes <c>ice-lights</c> rather than being rejected.
-    /// </summary>
     public static string NormalizeSlug(string value)
     {
         var cleaned = new string([.. value

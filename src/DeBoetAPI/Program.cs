@@ -5,6 +5,7 @@ using DeBoetAPI.Data.Entities;
 using DeBoetAPI.Features.Audit;
 using DeBoetAPI.Features.Auth;
 using DeBoetAPI.Features.Categories;
+using DeBoetAPI.Features.Events;
 using DeBoetAPI.Features.Items;
 using DeBoetAPI.Features.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -32,6 +33,8 @@ builder.Services.AddOptions<JwtOptions>()
 var connectionString = builder.Configuration.GetConnectionString("Postgres")
     ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not configured.");
 
+builder.Services.AddSingleton<ChangeStream>();
+
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(
     connectionString,
     npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history")));
@@ -46,8 +49,6 @@ builder.Services.AddIdentityCore<AppUser>(options =>
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<AppDbContext>()
-    // Required by GeneratePasswordResetTokenAsync, which the admin reset path uses. Without
-    // it the reset fails quietly and the old password keeps working.
     .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<TokenService>();
@@ -81,14 +82,9 @@ builder.Services
     });
 
 builder.Services.AddAuthorizationBuilder()
-    // Both policies also refuse anyone still on an admin-set password. Enforcing that here
-    // rather than only in the admin panel is the point: otherwise the temporary password
-    // would grant full API access to anyone willing to skip the UI.
     .AddPolicy(AuthPolicies.Admin, policy => policy
         .RequireRole(AuthPolicies.AdminRole)
         .RequireAssertion(HasChangedPassword))
-    // Editor is satisfied by either role, so an admin is never refused something an editor
-    // may do.
     .AddPolicy(AuthPolicies.Editor, policy => policy
         .RequireRole(AuthPolicies.EditorRole, AuthPolicies.AdminRole)
         .RequireAssertion(HasChangedPassword));
@@ -182,10 +178,6 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Docs are opt-in rather than tied to the environment, so they can be turned on in Production
-// without also enabling developer exception pages and the rest of Development's behaviour.
-// Caddy does not proxy these paths, so on the VPS they are reachable only over the loopback
-// binding — i.e. through an SSH tunnel. See the Caddyfile before exposing them publicly.
 if (builder.Configuration.GetValue("OpenApi:Enabled", app.Environment.IsDevelopment()))
 {
     app.MapOpenApi();
@@ -207,5 +199,6 @@ app.MapItemEndpoints();
 app.MapCategoryEndpoints();
 app.MapAuditEndpoints();
 app.MapUserEndpoints();
+app.MapEventEndpoints();
 
 app.Run();

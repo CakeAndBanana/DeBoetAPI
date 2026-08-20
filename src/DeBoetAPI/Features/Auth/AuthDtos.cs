@@ -16,10 +16,6 @@ public sealed record RegisterRequest
 
 public sealed record LoginRequest
 {
-    /// <summary>
-    /// Email address or username. Not constrained to an email so the seeded <c>admin</c>
-    /// account can sign in with its username.
-    /// </summary>
     [Required, MaxLength(256)]
     public string Email { get; init; } = string.Empty;
 

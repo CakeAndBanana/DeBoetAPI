@@ -11,7 +11,6 @@ public sealed class AdminSeedOptions
 
     public string Username { get; set; } = DefaultUsername;
 
-    /// <summary>Identity requires a unique email, so the seed account gets a placeholder one.</summary>
     public string Email { get; set; } = DefaultEmail;
 
     public string Password { get; set; } = DefaultPassword;

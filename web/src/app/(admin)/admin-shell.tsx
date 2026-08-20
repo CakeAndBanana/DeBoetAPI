@@ -7,6 +7,7 @@ import {
 import { useT } from '@/i18n/client';
 import { AdminNav } from './admin-nav';
 import { LanguageSwitcher } from './language-switcher';
+import { LiveUpdates } from './live-updates';
 
 /**
  * The frame around every admin page.
@@ -84,7 +85,10 @@ export function AdminShell({
         </Button>
       </AppShellNavbar>
 
-      <AppShellMain>{children}</AppShellMain>
+      <AppShellMain>
+        <LiveUpdates />
+        {children}
+      </AppShellMain>
     </AppShell>
   );
 }

@@ -32,10 +32,6 @@ public sealed class AuditLog(AppDbContext db, CurrentUser currentUser)
     public void RecordCategory(Category category, AuditAction action, string? summary = null) =>
         Record(AuditedEntityType.Category, category.Id, category.Name, action, category.PathSlug, summary);
 
-    /// <summary>
-    /// Records a change to an account. The summary must never contain a password or any hint
-    /// of one — "password reset" is the whole message.
-    /// </summary>
     public void RecordUser(AppUser user, AuditAction action, string? summary = null) =>
         Record(AuditedEntityType.User, user.Id, user.UserName ?? user.Email ?? user.Id.ToString(),
             action, summary: summary);

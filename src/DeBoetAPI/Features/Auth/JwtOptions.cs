@@ -12,7 +12,6 @@ public sealed class JwtOptions
     [Required]
     public string Audience { get; set; } = string.Empty;
 
-    /// <summary>HS256 signing key. Must be at least 32 bytes; supply it as a secret, never in appsettings.</summary>
     [Required]
     [MinLength(32)]
     public string SigningKey { get; set; } = string.Empty;

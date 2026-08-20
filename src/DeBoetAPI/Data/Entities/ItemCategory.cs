@@ -1,9 +1,5 @@
 namespace DeBoetAPI.Data.Entities;
 
-/// <summary>
-/// Places an item in a category. At most one row per item may carry
-/// <see cref="IsPrimary"/> — enforced by a filtered unique index, not just by convention.
-/// </summary>
 public class ItemCategory
 {
     public Guid ItemId { get; set; }

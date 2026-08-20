@@ -15,8 +15,6 @@ public static class AuthEndpoints
             .WithTags("Auth")
             .RequireRateLimiting(RateLimitPolicies.Auth);
 
-        // Accounts are provisioned by administrators; there is no public sign-up and no
-        // self-service password recovery.
         group.MapPost("/register", RegisterAsync)
             .RequireAuthorization(AuthPolicies.Admin)
             .WithName("Register")
@@ -34,9 +32,6 @@ public static class AuthEndpoints
             .WithName("Logout")
             .WithSummary("Revoke a refresh token.");
 
-        // Deliberately RequireAuthorization() and not the Admin/Editor policies: those refuse
-        // anyone still on an admin-set password, which would make this endpoint — the only way
-        // out of that state — unreachable.
         group.MapPost("/change-password", ChangePasswordAsync)
             .WithName("ChangePassword")
             .WithSummary("Change your own password, clearing any forced-change flag.")

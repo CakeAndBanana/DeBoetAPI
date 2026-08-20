@@ -115,6 +115,54 @@ Each category's route in the tree links to its live page on `SITE_URL`
 (`https://www.deboet.nl` by default). It is read on the server and passed down, so pointing the
 panel at staging is an environment change rather than a rebuild.
 
+### Live updates
+
+Every panel subscribes to a change feed, so an edit made on a phone appears in a browser
+without anyone reloading. The API publishes one event per recorded change from
+[ChangeStream](src/DeBoetAPI/Common/ChangeStream.cs); the panel proxies that stream through its
+own server — `EventSource` cannot send an `Authorization` header, and the token must not reach
+the browser anyway — and calls `router.refresh()` when something arrives. Half-typed forms, the
+search box and collapsed branches all survive the refresh.
+
+Who hears what:
+
+| Change | Goes to |
+|---|---|
+| Category or item created, edited, moved, deleted | everyone signed in |
+| Password reset, roles changed, account disabled | only that account's own sessions |
+
+The taxonomy is shared work, so a move is everyone's business. An account is not: a password
+reset needs to reach the sessions it happened to, and fanning it out would announce to every
+open panel whenever anyone's password changed.
+
+Server-sent events rather than websockets: the traffic only ever goes one way, SSE is plain
+HTTP so it needs no protocol upgrade, and the browser reconnects on its own. Caddy passes it
+through unbuffered and declines to compress it, so no proxy configuration is needed.
+
+**One limit worth knowing.** The fan-out is in-process, so it reaches only the clients
+connected to the API container that handled the change. That is every client today — one
+container serves this deployment — but a second replica would need Postgres `LISTEN`/`NOTIFY`
+or a broker behind `ChangeStream.Publish`.
+
+### Checks
+
+```bash
+cd web
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint
+npm run test         # vitest run
+npm run test:watch   # vitest, watching
+```
+
+Unit tests cover the panel's pure modules — the tree maths behind search and drag-and-drop,
+the JWT claim reading that decides what a session may see, translation lookup, and the parent
+picker's flattening. Deliberately not component tests: what these cover goes wrong silently,
+whereas a broken button is obvious the moment you open the page.
+
+All three run in CI on every push and pull request, on a GitHub-hosted runner rather than the
+self-hosted one, which is set up for .NET and has no Node. Type errors already fail
+`next build`; lint and the tests were enforced nowhere before.
+
 ### Adding a language
 
 The panel's interface is translated from one file per language in
