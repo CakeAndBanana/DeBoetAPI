@@ -13,7 +13,8 @@ import {
 } from '@tabler/icons-react';
 import type { CategoryNode, CategoryOption } from '@/lib/categories';
 import {
-  canDrop, collectSubtreeIds, countDescendants, countNodes, filterTree, findNode, searchTerms,
+  canDrop, collectSubtreeIds, countDescendants, countNodes, dropTargetFrom, filterTree,
+  findNode, searchTerms,
 } from '@/lib/tree-utils';
 import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
@@ -130,15 +131,8 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
   const dragging = useRef<string | null>(null);
   const autoScroll = useRef(0);
 
-  function targetUnder(x: number, y: number): { id: string | null; valid: boolean } {
-    const element = document.elementFromPoint(x, y);
-
-    if (element?.closest('[data-root-drop]')) return { id: null, valid: true };
-
-    const id = element?.closest('[data-category-id]')?.getAttribute('data-category-id') ?? null;
-    const source = dragging.current;
-    return { id, valid: !!id && !!source && canDrop(nodes, source, id) };
-  }
+  const targetUnder = (x: number, y: number, source: string | null) =>
+    dropTargetFrom(document.elementFromPoint(x, y), nodes, source);
 
   /**
    * Scrolls the page when the pointer nears an edge.
@@ -176,7 +170,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     if (dragging.current === null) return;
     event.preventDefault();
 
-    const { id, valid } = targetUnder(event.clientX, event.clientY);
+    const { id, valid } = targetUnder(event.clientX, event.clientY, dragging.current);
     setDropTarget(valid ? id : undefined);
     edgeScroll(event.clientY);
   }
@@ -188,7 +182,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     dragging.current = null;
     cancelAnimationFrame(autoScroll.current);
 
-    const { id, valid } = targetUnder(event.clientX, event.clientY);
+    const { id, valid } = targetUnder(event.clientX, event.clientY, source);
     if (valid) {
       drop(id, source);
       return;

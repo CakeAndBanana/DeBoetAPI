@@ -238,6 +238,12 @@ describe('dropTargetFrom', () => {
     expect(dropTargetFrom(hit({}), tree, 'Ice Lights')).toEqual({ id: null, valid: false });
   });
 
+  it('refuses the root zone too when no drag is in progress', () => {
+    const overRoot = hit({ '[data-root-drop]': '' });
+
+    expect(dropTargetFrom(overRoot, tree, null)).toEqual({ id: null, valid: false });
+  });
+
   it('is not a target when no drag is in progress', () => {
     expect(dropTargetFrom(hit({ '[data-category-id]': 'Halloween' }), tree, null))
       .toEqual({ id: null, valid: false });
