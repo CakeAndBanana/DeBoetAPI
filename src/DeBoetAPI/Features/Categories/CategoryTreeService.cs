@@ -160,14 +160,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     }
 
     /// <summary>Re-parents a category and rewrites its whole subtree's paths and depths.</summary>
-    /// <summary>
-    /// Reparents a category, positions it among its siblings, or both.
-    /// <para>
-    /// Position and parent are one operation because dragging a category between two others
-    /// is both at once, and doing it as two calls would leave the tree briefly wrong — and
-    /// wrong in the audit trail permanently.
-    /// </para>
-    /// </summary>
     public async Task<CategoryResult> MoveAsync(
         Guid id,
         Guid? newParentId,
@@ -200,8 +192,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             }
         }
 
-        // Same parent: this is a reorder, not a move, and none of the path rewriting below
-        // applies. Without a position it is a no-op.
         if (category.ParentId == newParentId)
         {
             if (position is null)
@@ -244,8 +234,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             await RewriteSubtreeSlugsAsync(newPath, oldPathSlug, newPathSlug, ct);
         }
 
-        // Placed only after the reparent, so the siblings queried are the new ones. Landing
-        // last by default matches what dropping onto a category looks like.
         await PlaceAsync(category, position ?? int.MaxValue, ct);
         await db.SaveChangesAsync(ct);
 
@@ -264,7 +252,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             .OrderBy(c => c.SortOrder).ThenBy(c => c.Name)
             .ToListAsync(ct);
 
-        // EF hands back the instance it is already tracking, so this is the same object.
         var from = siblings.FindIndex(c => c.Id == category.Id);
         siblings.RemoveAll(c => c.Id == category.Id);
 
