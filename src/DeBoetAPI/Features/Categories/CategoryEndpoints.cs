@@ -317,7 +317,7 @@ public static class CategoryEndpoints
         CategoryTreeService tree,
         CancellationToken ct)
     {
-        var result = await tree.MoveAsync(id, request.NewParentId, ct);
+        var result = await tree.MoveAsync(id, request.NewParentId, request.Position, ct);
 
         return result.Succeeded
             ? TypedResults.Ok(ToResponse(result.Category!))

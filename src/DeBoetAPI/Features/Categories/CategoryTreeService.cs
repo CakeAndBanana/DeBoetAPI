@@ -160,7 +160,19 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     }
 
     /// <summary>Re-parents a category and rewrites its whole subtree's paths and depths.</summary>
-    public async Task<CategoryResult> MoveAsync(Guid id, Guid? newParentId, CancellationToken ct)
+    /// <summary>
+    /// Reparents a category, positions it among its siblings, or both.
+    /// <para>
+    /// Position and parent are one operation because dragging a category between two others
+    /// is both at once, and doing it as two calls would leave the tree briefly wrong — and
+    /// wrong in the audit trail permanently.
+    /// </para>
+    /// </summary>
+    public async Task<CategoryResult> MoveAsync(
+        Guid id,
+        Guid? newParentId,
+        int? position,
+        CancellationToken ct)
     {
         var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (category is null)
@@ -188,8 +200,17 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             }
         }
 
+        // Same parent: this is a reorder, not a move, and none of the path rewriting below
+        // applies. Without a position it is a no-op.
         if (category.ParentId == newParentId)
         {
+            if (position is null)
+            {
+                return CategoryResult.Ok(category);
+            }
+
+            await PlaceAsync(category, position.Value, ct);
+            await db.SaveChangesAsync(ct);
             return CategoryResult.Ok(category);
         }
 
@@ -223,8 +244,45 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             await RewriteSubtreeSlugsAsync(newPath, oldPathSlug, newPathSlug, ct);
         }
 
+        // Placed only after the reparent, so the siblings queried are the new ones. Landing
+        // last by default matches what dropping onto a category looks like.
+        await PlaceAsync(category, position ?? int.MaxValue, ct);
+        await db.SaveChangesAsync(ct);
+
         await transaction.CommitAsync(ct);
         return CategoryResult.Ok(category);
+    }
+
+    /// <summary>
+    /// Puts a category at a given position among its siblings and renumbers all of them from
+    /// zero, so the order stays gapless however many times it is rearranged.
+    /// </summary>
+    private async Task PlaceAsync(Category category, int position, CancellationToken ct)
+    {
+        var siblings = await db.Categories
+            .Where(c => c.ParentId == category.ParentId)
+            .OrderBy(c => c.SortOrder).ThenBy(c => c.Name)
+            .ToListAsync(ct);
+
+        // EF hands back the instance it is already tracking, so this is the same object.
+        var from = siblings.FindIndex(c => c.Id == category.Id);
+        siblings.RemoveAll(c => c.Id == category.Id);
+
+        var to = Math.Clamp(position, 0, siblings.Count);
+        siblings.Insert(to, category);
+
+        for (var i = 0; i < siblings.Count; i++)
+        {
+            siblings[i].SortOrder = i;
+        }
+
+        if (from != to)
+        {
+            category.UpdatedAt = DateTimeOffset.UtcNow;
+            category.UpdatedById = audit.ActorId;
+            audit.RecordCategory(category, AuditAction.Reordered,
+                from < 0 ? $"placed at position {to}" : $"position: {from} -> {to}");
+        }
     }
 
     /// <summary>

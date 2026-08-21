@@ -8,13 +8,13 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  IconArrowsMove, IconChevronDown, IconChevronRight, IconGripVertical, IconHistory,
-  IconPencil, IconPlus, IconSearch, IconTrash, IconX,
+  IconArrowDown, IconArrowsMove, IconArrowUp, IconChevronDown, IconChevronRight,
+  IconGripVertical, IconHistory, IconPencil, IconPlus, IconSearch, IconTrash, IconX,
 } from '@tabler/icons-react';
 import type { CategoryNode, CategoryOption } from '@/lib/categories';
 import {
   canDrop, collectSubtreeIds, countDescendants, countNodes, dropTargetFrom, filterTree,
-  findNode, searchTerms,
+  findNode, indexOf, placementFor, searchTerms, stepFor, type DropMode,
 } from '@/lib/tree-utils';
 import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
@@ -51,6 +51,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [dragged, setDragged] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null | undefined>(undefined);
+  const [dropMode, setDropMode] = useState<DropMode>('inside');
 
   useEffect(() => {
     try {
@@ -103,15 +104,45 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     notifications.show({ color: 'green', title: t('common.done'), message: success + promoted });
   }
 
-  function drop(targetId: string | null, source: string | null = dragged) {
+  function drop(targetId: string | null, source: string | null = dragged, mode: DropMode = 'inside') {
     const sourceId = source;
     setDragged(null);
     setDropTarget(undefined);
+    if (!sourceId) return;
 
-    if (!sourceId || !canDrop(nodes, sourceId, targetId)) return;
+    // Beside a category is a reorder among its siblings; inside it is a reparent. The two are
+    // one call to the API, which is what keeps a drag between two branches from being two
+    // half-finished operations.
+    if (targetId !== null && mode !== 'inside') {
+      const placement = placementFor(nodes, sourceId, targetId, mode);
+      if (!placement) return;
+
+      startTransition(async () => {
+        report(
+          await moveCategory(sourceId, placement.parentId, placement.position),
+          t('categories.reordered'),
+        );
+      });
+      return;
+    }
+
+    if (!canDrop(nodes, sourceId, targetId)) return;
 
     startTransition(async () => {
       report(await moveCategory(sourceId, targetId), t('categories.moved'));
+    });
+  }
+
+  /** One step up or down among a category's own siblings, for the arrow controls. */
+  function step(node: CategoryNode, delta: -1 | 1) {
+    const placement = stepFor(nodes, node.id, delta);
+    if (!placement) return;
+
+    startTransition(async () => {
+      report(
+        await moveCategory(node.id, placement.parentId, placement.position),
+        t('categories.reordered'),
+      );
     });
   }
 
@@ -132,7 +163,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
   const autoScroll = useRef(0);
 
   const targetUnder = (x: number, y: number, source: string | null) =>
-    dropTargetFrom(document.elementFromPoint(x, y), nodes, source);
+    dropTargetFrom(document.elementFromPoint(x, y), nodes, source, y);
 
   /**
    * Scrolls the page when the pointer nears an edge.
@@ -170,8 +201,9 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     if (dragging.current === null) return;
     event.preventDefault();
 
-    const { id, valid } = targetUnder(event.clientX, event.clientY, dragging.current);
+    const { id, valid, mode } = targetUnder(event.clientX, event.clientY, dragging.current);
     setDropTarget(valid ? id : undefined);
+    setDropMode(mode);
     edgeScroll(event.clientY);
   }
 
@@ -182,9 +214,9 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     dragging.current = null;
     cancelAnimationFrame(autoScroll.current);
 
-    const { id, valid } = targetUnder(event.clientX, event.clientY, source);
+    const { id, valid, mode } = targetUnder(event.clientX, event.clientY, source);
     if (valid) {
-      drop(id, source);
+      drop(id, source, mode);
       return;
     }
 
@@ -271,6 +303,8 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             onDragMove={moveDrag}
             onDragEnd={endDrag}
             onDragCancel={cancelDrag}
+            dropMode={dropMode}
+            onStep={step}
             continues={[]}
           />
         ))}
@@ -371,6 +405,9 @@ interface BranchProps {
   onDragMove: (event: React.PointerEvent) => void;
   onDragEnd: (event: React.PointerEvent) => void;
   onDragCancel: () => void;
+  /** Which edge of the hovered card the pointer is over, so the indicator lands correctly. */
+  dropMode: DropMode;
+  onStep: (node: CategoryNode, delta: -1 | 1) => void;
   /**
    * One entry per indent column. Entry j says whether the ancestor sitting at column j has a
    * further sibling below, which is what decides whether its vertical guide keeps running past
@@ -383,8 +420,13 @@ function Branch(props: BranchProps) {
   const t = useT();
   const {
     node, depth, nodes, collapsed, onToggle, dragged, dropTarget, siteUrl, terms, draggingAllowed,
-    continues,
+    continues, dropMode,
   } = props;
+
+  // Read from the whole tree, not the filtered view, so the ends of a list are the real ends.
+  const place = indexOf(nodes, node.id);
+  const isFirst = !place || place.index <= 0;
+  const isLast = !place || place.index >= place.count - 1;
 
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
@@ -394,6 +436,9 @@ function Branch(props: BranchProps) {
   const isDragging = dragged === node.id;
   const isValidTarget = draggingAllowed && dragged !== null && canDrop(nodes, dragged, node.id);
   const isHovered = dropTarget === node.id && isValidTarget;
+  // Inside means "become a child", so the card fills; beside means "sit here", so a line is
+  // drawn on the edge it would land against.
+  const insertAt = isHovered && dropMode !== 'inside' ? dropMode : null;
 
   // The two publishing flags, read off the border. Both off is its own colour rather than
   // one winning, because "not live and not navigable" is a different situation from either
@@ -423,8 +468,10 @@ function Branch(props: BranchProps) {
           cursor: 'default',
           // Teal, not blue: blue now means "off menu", and a drop target has to stay
           // legible against a tree full of them mid-drag.
-          borderColor: isHovered ? 'var(--mantine-color-teal-5)' : stateColour,
-          background: isHovered ? 'var(--mantine-color-teal-light)' : undefined,
+          borderColor: isHovered && !insertAt ? 'var(--mantine-color-teal-5)' : stateColour,
+          background: isHovered && !insertAt ? 'var(--mantine-color-teal-light)' : undefined,
+          borderTop: insertAt === 'before' ? '3px solid var(--mantine-color-teal-6)' : undefined,
+          borderBottom: insertAt === 'after' ? '3px solid var(--mantine-color-teal-6)' : undefined,
         }}
       >
         <Group justify="space-between" wrap="nowrap" gap="md">
@@ -547,6 +594,30 @@ function Branch(props: BranchProps) {
                   <IconHistory size={16} />
                 </ActionIcon>
               </Tooltip>
+                {/*
+                  Ordering without a drag. Precise, reachable on a phone, and the only way to
+                  rearrange a list while the tree is filtered.
+                */}
+                <Tooltip label={t('categories.moveUp')}>
+                  <ActionIcon
+                    variant="subtle"
+                    disabled={isFirst || !draggingAllowed}
+                    aria-label={t('categories.moveUp')}
+                    onClick={() => props.onStep(node, -1)}
+                  >
+                    <IconArrowUp size={16} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label={t('categories.moveDown')}>
+                  <ActionIcon
+                    variant="subtle"
+                    disabled={isLast || !draggingAllowed}
+                    aria-label={t('categories.moveDown')}
+                    onClick={() => props.onStep(node, 1)}
+                  >
+                    <IconArrowDown size={16} />
+                  </ActionIcon>
+                </Tooltip>
                 <Tooltip label={t('common.move')}>
                   <ActionIcon variant="subtle" onClick={() => props.onMove(node)}>
                     <IconArrowsMove size={16} />

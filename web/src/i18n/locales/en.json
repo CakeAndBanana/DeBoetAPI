@@ -60,6 +60,9 @@
   "categories.moved": "Category moved.",
   "categories.deleted": "Category deleted.",
   "categories.promoted": " {count} child category was promoted to the grandparent.",
+  "categories.reordered": "Order changed.",
+  "categories.moveUp": "Move up",
+  "categories.moveDown": "Move down",
   "categories.failed": "Failed",
 
   "categories.moveTitle": "Move \"{name}\"",

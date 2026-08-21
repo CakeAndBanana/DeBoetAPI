@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { CategoryNode } from './categories';
 import {
-  canDrop, collectSubtreeIds, countDescendants, countNodes, dropTargetFrom, filterTree,
-  findNode, matches, searchTerms,
+  canDrop, collectSubtreeIds, countDescendants, countNodes, dropModeFor, dropTargetFrom,
+  filterTree, findNode, indexOf, matches, placementFor, searchTerms, stepFor,
 } from './tree-utils';
 
 /** A node with only the fields the tree helpers actually read. */
@@ -206,13 +206,16 @@ describe('canDrop', () => {
   });
 });
 
-/** Stands in for a DOM element, so the hit-test can be exercised without a browser. */
-function hit(chain: Record<string, string | null>) {
+/**
+ * Stands in for a DOM element, so the hit-test can be exercised without a browser.
+ * `rect` gives the matched card a height, which is what the before/inside/after split reads.
+ */
+function hit(chain: Record<string, string | null>, rect = { top: 100, height: 60 }) {
   return {
     closest(selector: string) {
       if (!(selector in chain)) return null;
       const value = chain[selector];
-      return { getAttribute: () => value };
+      return { getAttribute: () => value, getBoundingClientRect: () => rect };
     },
   };
 }
@@ -220,36 +223,153 @@ function hit(chain: Record<string, string | null>) {
 describe('dropTargetFrom', () => {
   it('reads the category under the pointer', () => {
     expect(dropTargetFrom(hit({ '[data-category-id]': 'Halloween' }), tree, 'Ice Lights'))
-      .toEqual({ id: 'Halloween', valid: true });
+      .toEqual({ id: 'Halloween', valid: true, mode: 'inside' });
   });
 
   it('treats the root zone as a valid drop, whatever is behind it', () => {
     const overRoot = hit({ '[data-root-drop]': '', '[data-category-id]': 'Christmas' });
 
-    expect(dropTargetFrom(overRoot, tree, 'Ice Lights')).toEqual({ id: null, valid: true });
+    expect(dropTargetFrom(overRoot, tree, 'Ice Lights'))
+      .toEqual({ id: null, valid: true, mode: 'inside' });
   });
 
   it('marks a drop into the dragged node’s own subtree invalid', () => {
     expect(dropTargetFrom(hit({ '[data-category-id]': 'Ice Lights' }), tree, 'Christmas'))
-      .toEqual({ id: 'Ice Lights', valid: false });
+      .toEqual({ id: 'Ice Lights', valid: false, mode: 'inside' });
   });
 
   it('is not a target when the pointer is over nothing in the tree', () => {
-    expect(dropTargetFrom(hit({}), tree, 'Ice Lights')).toEqual({ id: null, valid: false });
+    expect(dropTargetFrom(hit({}), tree, 'Ice Lights'))
+      .toEqual({ id: null, valid: false, mode: 'inside' });
   });
 
   it('refuses the root zone too when no drag is in progress', () => {
     const overRoot = hit({ '[data-root-drop]': '' });
 
-    expect(dropTargetFrom(overRoot, tree, null)).toEqual({ id: null, valid: false });
+    expect(dropTargetFrom(overRoot, tree, null)).toEqual({ id: null, valid: false, mode: 'inside' });
   });
 
   it('is not a target when no drag is in progress', () => {
     expect(dropTargetFrom(hit({ '[data-category-id]': 'Halloween' }), tree, null))
-      .toEqual({ id: null, valid: false });
+      .toEqual({ id: null, valid: false, mode: 'inside' });
   });
 
   it('survives elementFromPoint returning null, which it does past the viewport edge', () => {
-    expect(dropTargetFrom(null, tree, 'Ice Lights')).toEqual({ id: null, valid: false });
+    expect(dropTargetFrom(null, tree, 'Ice Lights')).toEqual({ id: null, valid: false, mode: 'inside' });
+
+  });
+
+  it('reads the top edge of a card as a reorder above it', () => {
+    // y=103 on a card spanning 100..160 is inside the 10px top band.
+    expect(dropTargetFrom(hit({ '[data-category-id]': 'Trees' }), tree, 'Pumpkins', 103))
+      .toEqual({ id: 'Trees', valid: true, mode: 'before' });
+  });
+
+  it('reads the bottom edge as a reorder below it', () => {
+    expect(dropTargetFrom(hit({ '[data-category-id]': 'Trees' }), tree, 'Pumpkins', 157))
+      .toEqual({ id: 'Trees', valid: true, mode: 'after' });
+  });
+
+  it('reads the middle as making it a child', () => {
+    expect(dropTargetFrom(hit({ '[data-category-id]': 'Trees' }), tree, 'Pumpkins', 130))
+      .toEqual({ id: 'Trees', valid: true, mode: 'inside' });
+  });
+
+  it('allows reordering beside your own descendant, which is not a cycle', () => {
+    // Dropping Christmas *inside* Ice Lights would detach the branch; dropping it beside Ice
+    // Lights only changes who sits where in that list, so it is allowed.
+    expect(dropTargetFrom(hit({ '[data-category-id]': 'Ice Lights' }), tree, 'Christmas', 103))
+      .toEqual({ id: 'Ice Lights', valid: true, mode: 'before' });
+  });
+
+  it('refuses a drop beside itself', () => {
+    expect(dropTargetFrom(hit({ '[data-category-id]': 'Trees' }), tree, 'Trees', 103))
+      .toEqual({ id: 'Trees', valid: false, mode: 'before' });
+  });
+});
+
+describe('dropModeFor', () => {
+  // A 60px card starting at y=100: edges are the top and bottom 10px.
+  it('reads the top edge as "put it above"', () => {
+    expect(dropModeFor(100, 60, 103)).toBe('before');
+  });
+
+  it('reads the bottom edge as "put it below"', () => {
+    expect(dropModeFor(100, 60, 157)).toBe('after');
+  });
+
+  it('reads the middle as "put it inside"', () => {
+    expect(dropModeFor(100, 60, 130)).toBe('inside');
+  });
+
+  it('keeps a middle to aim at on a short card', () => {
+    // A quarter each way rather than 10px, so a 20px row is not all edge.
+    expect(dropModeFor(0, 20, 10)).toBe('inside');
+    expect(dropModeFor(0, 20, 1)).toBe('before');
+    expect(dropModeFor(0, 20, 19)).toBe('after');
+  });
+});
+
+describe('indexOf', () => {
+  it('finds a root among the roots', () => {
+    expect(indexOf(tree, 'Halloween')).toEqual({ index: 1, count: 2 });
+  });
+
+  it('finds a child among its siblings, not among everything', () => {
+    expect(indexOf(tree, 'Trees')).toEqual({ index: 1, count: 2 });
+  });
+
+  it('is null for an unknown id', () => {
+    expect(indexOf(tree, 'nope')).toBeNull();
+  });
+});
+
+describe('stepFor', () => {
+  it('steps a root up', () => {
+    expect(stepFor(tree, 'Halloween', -1)).toEqual({ parentId: null, position: 0 });
+  });
+
+  it('steps a child down within its own parent', () => {
+    expect(stepFor(tree, 'Christmas Lights', 1)).toEqual({ parentId: 'Christmas', position: 1 });
+  });
+
+  it('refuses to step the first one up', () => {
+    expect(stepFor(tree, 'Christmas', -1)).toBeNull();
+  });
+
+  it('refuses to step the last one down', () => {
+    expect(stepFor(tree, 'Trees', 1)).toBeNull();
+  });
+});
+
+describe('placementFor', () => {
+  it('places before a target in another branch', () => {
+    expect(placementFor(tree, 'Trees', 'Lights', 'before'))
+      .toEqual({ parentId: 'Halloween', position: 1 });
+  });
+
+  it('places after a target in another branch', () => {
+    expect(placementFor(tree, 'Trees', 'Pumpkins', 'after'))
+      .toEqual({ parentId: 'Halloween', position: 1 });
+  });
+
+  it('counts with the dragged category already removed when it moves down its own list', () => {
+    // Ice Lights is at 0 and Fairy Lights at 1. Dropping Ice below Fairy means index 1 once
+    // Ice is out of the list — counting against the original list would say 2 and overshoot.
+    expect(placementFor(tree, 'Ice Lights', 'Fairy Lights', 'after'))
+      .toEqual({ parentId: 'Christmas Lights', position: 1 });
+  });
+
+  it('counts the same way moving up its own list', () => {
+    expect(placementFor(tree, 'Fairy Lights', 'Ice Lights', 'before'))
+      .toEqual({ parentId: 'Christmas Lights', position: 0 });
+  });
+
+  it('is null when dropped on itself', () => {
+    expect(placementFor(tree, 'Trees', 'Trees', 'before')).toBeNull();
+  });
+
+  it('is null for a target that is not in the tree', () => {
+    expect(placementFor(tree, 'Trees', 'nope', 'after')).toBeNull();
   });
 });

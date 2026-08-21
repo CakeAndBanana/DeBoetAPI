@@ -60,6 +60,9 @@
   "categories.moved": "Categorie verplaatst.",
   "categories.deleted": "Categorie verwijderd.",
   "categories.promoted": " {count} subcategorie is doorgeschoven naar de bovenliggende categorie.",
+  "categories.reordered": "Volgorde gewijzigd.",
+  "categories.moveUp": "Omhoog verplaatsen",
+  "categories.moveDown": "Omlaag verplaatsen",
   "categories.failed": "Mislukt",
 
   "categories.moveTitle": "\"{name}\" verplaatsen",

@@ -58,6 +58,13 @@ public sealed record UpdateCategoryRequest
 public sealed record MoveCategoryRequest
 {
     public Guid? NewParentId { get; init; }
+
+    /// <summary>
+    /// Where to sit among the new siblings, counting from zero. Omit to place it last, which
+    /// is what dropping a category onto another one does. Out-of-range values are clamped
+    /// rather than refused: the caller is describing an intent, not an array index.
+    /// </summary>
+    public int? Position { get; init; }
 }
 
 public sealed record AddCategoryLinkRequest

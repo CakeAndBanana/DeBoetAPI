@@ -14,6 +14,7 @@ public enum AuditAction
     Updated,
     Deleted,
     Moved,
+    Reordered,
     ChildPromoted,
     LinkAdded,
     LinkRemoved,

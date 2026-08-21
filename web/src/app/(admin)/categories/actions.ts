@@ -53,11 +53,21 @@ export async function updateCategory(id: string, input: CategoryInput) {
   );
 }
 
-export async function moveCategory(id: string, newParentId: string | null) {
+/**
+  * Reparents a category, repositions it among its siblings, or both.
+  *
+  * One call rather than two, because dragging a category between two others under a different
+  * parent is both at once, and splitting it would leave the tree briefly wrong.
+  */
+export async function moveCategory(
+  id: string,
+  newParentId: string | null,
+  position?: number,
+) {
   return await run(() =>
     apiFetch(`/api/v1/categories/${id}/move`, {
       method: 'POST',
-      body: JSON.stringify({ newParentId }),
+      body: JSON.stringify({ newParentId, position }),
     }),
   );
 }
