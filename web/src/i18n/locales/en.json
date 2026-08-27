@@ -131,6 +131,7 @@
   "audit.countRecordedOne": "1 recorded change, newest first.",
   "audit.countMatching": "{count} matching changes, newest first.",
   "audit.countMatchingOne": "1 matching change, newest first.",
+  "audit.showing": "Showing {first}–{last} of {total}",
   "audit.recordType": "Record type",
   "audit.action": "Action",
   "audit.person": "Person",

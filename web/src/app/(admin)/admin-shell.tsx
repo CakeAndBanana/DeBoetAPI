@@ -52,11 +52,16 @@ export function AdminShell({
         opened={opened}
         onClose={close}
         size={280}
+        // Zero so the nav rows run edge to edge; the header gets its own inset below, because
+        // otherwise the title sits flush against the side of the screen.
         padding={0}
         title={t('app.title')}
         // Scrolls its own body, so a long menu never pushes the account section out of reach.
         scrollAreaComponent={ScrollArea.Autosize}
-        styles={{ title: { fontWeight: 600 } }}
+        styles={{
+          title: { fontWeight: 600 },
+          header: { paddingInline: 'var(--mantine-spacing-xs)' },
+        }}
       >
         <Stack gap={0} pb="md">
           <AdminNav isAdmin={isAdmin} onNavigate={close} />

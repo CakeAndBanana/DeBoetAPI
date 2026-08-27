@@ -29,9 +29,21 @@ export function listCategories(pageSize = 200) {
   );
 }
 
-export function getCategoryHistory(id: string) {
-  return apiFetch<Paged<AuditEntry>>(`/api/v1/categories/${id}/history?pageSize=100`);
+/** One category's history. Paged like the main feed: a busy category outgrows one screen. */
+export function getCategoryHistory(id: string, page?: number) {
+  const params = new URLSearchParams({ pageSize: String(AUDIT_PAGE_SIZE) });
+  if (page) params.set('page', String(page));
+
+  return apiFetch<Paged<AuditEntry>>(`/api/v1/categories/${id}/history?${params}`);
 }
+
+/**
+ * Rows per page of history.
+ *
+ * Enough that paging is rare in practice, and far short of loading a whole table: ten thousand
+ * changes in one response would be slow to fetch, slow to render and useless to read.
+ */
+export const AUDIT_PAGE_SIZE = 250;
 
 export interface AuditFilters {
   entityType?: string;
@@ -41,7 +53,7 @@ export interface AuditFilters {
 }
 
 export function getAudit(filters: AuditFilters = {}) {
-  const params = new URLSearchParams({ pageSize: '50' });
+  const params = new URLSearchParams({ pageSize: String(AUDIT_PAGE_SIZE) });
   if (filters.entityType) params.set('entityType', filters.entityType);
   if (filters.action) params.set('action', filters.action);
   if (filters.changedById) params.set('changedById', filters.changedById);

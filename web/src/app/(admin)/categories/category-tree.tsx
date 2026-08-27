@@ -435,6 +435,11 @@ function Branch(props: BranchProps) {
   } = props;
 
   // Read from the whole tree, not the filtered view, so the ends of a list are the real ends.
+  // Where a visitor actually ends up. A forwarding category has no page of its own, so
+  // linking to its own address would open the one place it is guaranteed not to stay.
+  const destination = node.redirectToId ? findNode(nodes, node.redirectToId) : null;
+  const liveUrl = `${siteUrl}/${(destination ?? node).pathSlug}`;
+
   const place = indexOf(nodes, node.id);
   const isFirst = !place || place.index <= 0;
   const isLast = !place || place.index >= place.count - 1;
@@ -547,9 +552,9 @@ function Branch(props: BranchProps) {
                 {node.name}
               </Highlight>
             </UnstyledButton>
-            <Tooltip label={`${siteUrl}/${node.pathSlug}`}>
+            <Tooltip label={liveUrl}>
               <Anchor
-                href={`${siteUrl}/${node.pathSlug}`}
+                href={liveUrl}
                 target="_blank"
                 rel="noreferrer"
                 draggable={false}

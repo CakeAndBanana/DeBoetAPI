@@ -91,12 +91,21 @@ function Details({
       </Field>
 
       <Field label={t('details.address')}>
-        <Anchor href={url} target="_blank" rel="noreferrer" size="sm">
-          <Group gap={4} wrap="nowrap">
-            <Code>{details.pathSlug}</Code>
-            <IconExternalLink size={14} />
-          </Group>
-        </Anchor>
+        {/*
+          Its own address, stated whether or not it forwards — it is still what you would put
+          in a link. Only the row below opens a page, and that one goes where a visitor
+          actually ends up.
+        */}
+        {details.redirectTo ? (
+          <Code>{details.pathSlug}</Code>
+        ) : (
+          <Anchor href={url} target="_blank" rel="noreferrer" size="sm">
+            <Group gap={4} wrap="nowrap">
+              <Code>{details.pathSlug}</Code>
+              <IconExternalLink size={14} />
+            </Group>
+          </Anchor>
+        )}
         <Text size="xs" c="dimmed">{t('details.addressHelp', { slug: details.slug })}</Text>
       </Field>
 
@@ -133,7 +142,15 @@ function Details({
       <Field label={t('details.redirectsTo')}>
         {details.redirectTo ? (
           <Text size="sm">
-            {details.redirectTo.name} <Code>{details.redirectTo.pathSlug}</Code>
+            {details.redirectTo.name}{' '}
+            <Anchor
+              href={`${siteUrl}/${details.redirectTo.pathSlug}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Code>{details.redirectTo.pathSlug}</Code>
+              <IconExternalLink size={14} style={{ marginInlineStart: 4, verticalAlign: -2 }} />
+            </Anchor>
           </Text>
         ) : (
           <Text size="sm" c="dimmed">{t('details.noRedirect')}</Text>

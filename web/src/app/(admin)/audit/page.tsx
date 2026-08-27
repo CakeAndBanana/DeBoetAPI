@@ -4,6 +4,7 @@ import { getAudit, type Paged } from '@/lib/categories';
 import type { components } from '@/lib/api-types';
 import { AuditTable } from '@/components/audit-table';
 import { getT } from '@/i18n/server';
+import { AuditPagination } from '@/components/audit-pagination';
 import { AuditFilter } from './audit-filter';
 
 type ManagedUser = components['schemas']['ManagedUserResponse'];
@@ -54,6 +55,17 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
       </Group>
 
       <AuditTable entries={audit.items} />
+
+      <AuditPagination
+        page={audit.page}
+        pageSize={audit.pageSize}
+        totalCount={audit.totalCount}
+        totalPages={audit.totalPages}
+        path="/audit"
+        params={Object.fromEntries(
+          Object.entries({ entityType, action, changedById }).filter(([, v]) => !!v),
+        ) as Record<string, string>}
+      />
     </Stack>
   );
 }

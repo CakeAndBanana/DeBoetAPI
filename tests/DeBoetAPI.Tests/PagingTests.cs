@@ -9,7 +9,9 @@ public class PagingTests
     [InlineData(0, 0, 1, 1)] 
     [InlineData(-5, -5, 1, 1)]
     [InlineData(3, 50, 3, 50)]
-    [InlineData(1, 5000, 1, 100)] 
+    [InlineData(1, 250, 1, 250)]
+    // Asking for the whole table gets a page, not the table.
+    [InlineData(1, 5000, 1, Paging.MaxPageSize)]
     public void Normalize_ClampsToServableRange(int? page, int? pageSize, int expectedPage, int expectedSize)
     {
         var (actualPage, actualSize) = Paging.Normalize(page, pageSize);

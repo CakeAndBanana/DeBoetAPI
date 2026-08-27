@@ -278,4 +278,40 @@ public class AuditTests(PostgresFixture postgres) : CategoryTestBase(postgres)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+
+    [Fact]
+    public async Task TheFeed_ServesUpTo250InOnePage()
+    {
+        // The panel asks for 250 a page. If the cap were lower the request would be silently
+        // clamped and half the page would go missing without any error to notice.
+        var page = await HistoryAsync("/api/v1/audit?pageSize=250");
+
+        Assert.Equal(250, page.PageSize);
+    }
+
+    [Fact]
+    public async Task TheFeed_RefusesToServeTheWholeTableAtOnce()
+    {
+        var page = await HistoryAsync("/api/v1/audit?pageSize=10000");
+
+        Assert.Equal(250, page.PageSize);
+    }
+
+    [Fact]
+    public async Task TheFeed_PagesWithoutRepeatingOrLosingAnEntry()
+    {
+        foreach (var i in Enumerable.Range(0, 5))
+        {
+            await CreateCategoryAsync($"Paged {i}", slug: UniqueSlug($"paged{i}"));
+        }
+
+        var first = await HistoryAsync("/api/v1/audit?pageSize=2&page=1");
+        var second = await HistoryAsync("/api/v1/audit?pageSize=2&page=2");
+
+        Assert.Equal(2, first.Items.Count);
+        Assert.Equal(2, second.Items.Count);
+        Assert.Empty(first.Items.Select(e => e.Id).Intersect(second.Items.Select(e => e.Id)));
+        Assert.True(first.TotalCount >= 5);
+    }
+
 }
