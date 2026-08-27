@@ -89,9 +89,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, ChangeStream? 
                 .HasForeignKey(c => c.ParentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Deleting the destination clears the redirect rather than blocking the delete or
-            // taking the pointing category with it: the source is still a real category, it
-            // simply stops forwarding.
             e.HasOne(c => c.RedirectTo)
                 .WithMany()
                 .HasForeignKey(c => c.RedirectToId)

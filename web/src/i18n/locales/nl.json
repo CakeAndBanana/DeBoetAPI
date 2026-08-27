@@ -92,7 +92,7 @@
   "categories.fieldRedirectHelp": "Voor een categorie die alleen de boom ordent. Het adres brengt bezoekers dan naar de gekozen categorie. Slechts één stap: je kunt niet verwijzen naar een categorie die zelf al doorverwijst.",
   "categories.redirects": "verwijst door",
   "details.redirectsTo": "Verwijst door naar",
-  "details.noRedirect": "Niets — deze categorie wordt op haar eigen adres getoond.",
+  "details.noRedirect": "Niets; deze categorie wordt op haar eigen adres getoond.",
   "categories.fieldActive": "Actief",
   "categories.fieldActiveHelp": "Actief in overzichten",
   "categories.fieldMenu": "In menu",

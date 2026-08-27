@@ -115,18 +115,6 @@ then returns the destination already resolved, so a site can answer in one reque
 }
 ```
 
-The API records the intent; the website turns it into the HTTP redirect, and chooses whether
-that is a 301 or a 302.
-
-**One hop only**, enforced from both ends: a category may not point at one that already
-forwards, and a category that is already a destination may not be given a redirect of its own.
-Both are refused with a 409. That makes a cycle unbuildable rather than merely detected, and it
-means a consumer reads one field instead of walking a chain.
-
-Deleting the destination clears the redirect (`ON DELETE SET NULL`) rather than blocking the
-delete or taking the pointing category with it — the source is still a real category, it simply
-stops forwarding.
-
 ## Admin panel
 
 A Next.js app in [web/](web/) for managing the category tree, the accounts that may edit it,
