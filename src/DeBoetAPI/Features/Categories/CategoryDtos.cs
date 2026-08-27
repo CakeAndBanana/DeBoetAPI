@@ -15,6 +15,12 @@ public sealed record CreateCategoryRequest
     [MaxLength(200)]
     public string? MetaTitle { get; init; }
 
+    /// <summary>
+    /// Another category this one forwards to. Null for an ordinary category, and refused if
+    /// the target already forwards somewhere itself.
+    /// </summary>
+    public Guid? RedirectToId { get; init; }
+
     /// <summary>SEO meta description. Optional.</summary>
     [MaxLength(2000)]
     public string? MetaDescription { get; init; }
@@ -42,6 +48,9 @@ public sealed record UpdateCategoryRequest
     /// <summary>SEO meta title. Falls back to <see cref="Name"/> when blank.</summary>
     [MaxLength(200)]
     public string? MetaTitle { get; init; }
+
+    /// <summary>See <see cref="CreateCategoryRequest.RedirectToId"/>. Null clears it.</summary>
+    public Guid? RedirectToId { get; init; }
 
     /// <summary>SEO meta description. Optional.</summary>
     [MaxLength(2000)]
@@ -75,6 +84,8 @@ public sealed record CategoryResponse(
     string PathSlug,
     string? MetaTitle,
     string? MetaDescription,
+    /// <summary>Set when this category forwards to another one.</summary>
+    Guid? RedirectToId,
     Guid? ParentId,
     int Depth,
     int SortOrder,
@@ -90,7 +101,12 @@ public sealed record CategoryDetailResponse(
     CategoryResponse Category,
     IReadOnlyList<CategoryResponse> Breadcrumb,
     IReadOnlyList<CategoryResponse> Children,
-    IReadOnlyList<CategoryResponse> SecondaryParents);
+    IReadOnlyList<CategoryResponse> SecondaryParents,
+    /// <summary>
+    /// The category this one forwards to, resolved, so a site can issue the redirect from one
+    /// response without a second lookup. Null unless a redirect is set.
+    /// </summary>
+    CategoryResponse? RedirectTo = null);
 
 public sealed record CategoryNode(
     Guid Id,
@@ -99,6 +115,7 @@ public sealed record CategoryNode(
     string PathSlug,
     string? MetaTitle,
     string? MetaDescription,
+    Guid? RedirectToId,
     int Depth,
     int SortOrder,
     bool IsActive,

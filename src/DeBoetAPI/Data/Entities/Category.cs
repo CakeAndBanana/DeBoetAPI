@@ -43,6 +43,21 @@ public class Category
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    /// <summary>
+    /// Another category this one forwards to, or null for an ordinary category.
+    /// <para>
+    /// For a node that exists to organise the tree rather than to be landed on: "Christmas
+    /// Decorations" groups things but has nothing of its own to show, so its address should
+    /// take a visitor to "Christmas Trees" instead of a bare listing. The API records the
+    /// intent; the website turns it into an HTTP redirect.
+    /// </para>
+    /// Kept to a single hop — a target may not itself redirect — so a consumer never has to
+    /// follow a chain, and a cycle cannot be built in the first place.
+    /// </summary>
+    public Guid? RedirectToId { get; set; }
+
+    public Category? RedirectTo { get; set; }
+
     /// <summary>Extra parents this category also appears under.</summary>
     public ICollection<CategoryLink> SecondaryParentLinks { get; set; } = [];
 }

@@ -242,6 +242,10 @@ namespace DeBoetAPI.Data.Migrations
                         .HasColumnType("text")
                         .HasColumnName("path_slug");
 
+                    b.Property<Guid?>("RedirectToId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("redirect_to_id");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -274,6 +278,9 @@ namespace DeBoetAPI.Data.Migrations
                     b.HasIndex("PathSlug")
                         .IsUnique()
                         .HasDatabaseName("ix_categories_path_slug");
+
+                    b.HasIndex("RedirectToId")
+                        .HasDatabaseName("ix_categories_redirect_to_id");
 
                     b.HasIndex("Slug")
                         .HasDatabaseName("ix_categories_slug");
@@ -590,7 +597,15 @@ namespace DeBoetAPI.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_categories_categories_parent_id");
 
+                    b.HasOne("DeBoetAPI.Data.Entities.Category", "RedirectTo")
+                        .WithMany()
+                        .HasForeignKey("RedirectToId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_categories_categories_redirect_to_id");
+
                     b.Navigation("Parent");
+
+                    b.Navigation("RedirectTo");
                 });
 
             modelBuilder.Entity("DeBoetAPI.Data.Entities.CategoryLink", b =>

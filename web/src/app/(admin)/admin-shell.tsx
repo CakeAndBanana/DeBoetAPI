@@ -2,22 +2,25 @@
 
 import { useDisclosure } from '@mantine/hooks';
 import {
-  AppShell, AppShellHeader, AppShellMain, AppShellNavbar, Burger, Button, Group, Text,
+  AppShell, AppShellHeader, AppShellMain, Burger, Button, Divider, Drawer, Group, ScrollArea,
+  Stack, Text,
 } from '@mantine/core';
+import { IconLogout } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
 import { AdminNav } from './admin-nav';
+import { AccountMenu } from './account-menu';
 import { LanguageSwitcher } from './language-switcher';
 import { LiveUpdates } from './live-updates';
 
 /**
  * The frame around every admin page.
  *
- * A Client Component because the navbar's open state lives here: below the `sm` breakpoint it
- * collapses behind a burger instead of eating a third of a phone screen. Above it, the burger
- * is hidden and the navbar is permanent, so desktop behaviour is unchanged.
+ * The navigation lives in a drawer at every width rather than a permanent sidebar: on a phone
+ * a fixed column costs a third of the screen, and on a desktop it was mostly empty. One
+ * behaviour everywhere also means one thing to reason about.
  *
- * The signed-in name is `visibleFrom="sm"` — on a narrow header the language picker and the
- * way out matter more than a label repeating who you are.
+ * A Client Component because the drawer's open state lives here; only plain data crosses the
+ * boundary from the layout.
  */
 export function AdminShell({
   displayName, roles, isAdmin, children,
@@ -31,59 +34,60 @@ export function AdminShell({
   const [opened, { toggle, close }] = useDisclosure(false);
 
   return (
-    <AppShell
-      header={{ height: 56 }}
-      navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !opened } }}
-      padding="md"
-    >
+    <AppShell header={{ height: 56 }} padding="md">
       <AppShellHeader>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('nav.menu')} />
+            <Burger opened={opened} onClick={toggle} size="sm" aria-label={t('nav.menu')} />
             <Text fw={600} truncate>{t('app.title')}</Text>
           </Group>
 
-          <Group gap="xs" wrap="nowrap">
-            <Text size="sm" c="dimmed" visibleFrom="sm">
-              {displayName ?? t('nav.signedIn')}
-              {/* The roles as they actually are. Printing "editor" for anything that is not
-                  admin would misreport a session whose roles have not been read yet. */}
-              {roles?.length ? ` (${roles.join(', ').toLowerCase()})` : ''}
-            </Text>
-            <LanguageSwitcher />
-            <Button
-              component="a"
-              href="/change-password"
-              variant="subtle"
-              size="compact-sm"
-              visibleFrom="sm"
-            >
-              {t('nav.password')}
-            </Button>
-            {/* A real form post, so signing out also revokes the refresh token server-side. */}
-            <form action="/api/auth/logout" method="post">
-              <Button type="submit" variant="subtle" size="compact-sm">{t('nav.signOut')}</Button>
-            </form>
-          </Group>
+          {/* Stays in the header: burying a language switcher two taps deep is worse than the
+              small amount of room it costs. */}
+          <LanguageSwitcher />
         </Group>
       </AppShellHeader>
 
-      <AppShellNavbar p="xs">
-        {/* Closing on navigation matters only on mobile, where the navbar covers the page —
-            on desktop it is permanent and `close` changes nothing. */}
-        <AdminNav isAdmin={isAdmin} onNavigate={close} />
-        {/* Reachable on mobile, where the header button is hidden. */}
-        <Button
-          component="a"
-          href="/change-password"
-          variant="subtle"
-          size="compact-sm"
-          mt="sm"
-          hiddenFrom="sm"
-        >
-          {t('nav.password')}
-        </Button>
-      </AppShellNavbar>
+      <Drawer
+        opened={opened}
+        onClose={close}
+        size={280}
+        padding={0}
+        title={t('app.title')}
+        // Scrolls its own body, so a long menu never pushes the account section out of reach.
+        scrollAreaComponent={ScrollArea.Autosize}
+        styles={{ title: { fontWeight: 600 } }}
+      >
+        <Stack gap={0} pb="md">
+          <AdminNav isAdmin={isAdmin} onNavigate={close} />
+
+          <Divider my="xs" />
+
+          <Text size="xs" c="dimmed" tt="uppercase" fw={600} px="md" pb={4}>
+            {t('nav.account')}
+          </Text>
+
+          {/* The name opens onto what you can do about the account; signing out sits beneath
+              it, outside the fold, because it should never take two steps to reach. */}
+          <AccountMenu displayName={displayName} roles={roles} onNavigate={close} />
+
+          <form action="/api/auth/logout" method="post">
+            {/* A real form post, so signing out also revokes the refresh token server-side. */}
+            <Button
+              type="submit"
+              variant="subtle"
+              color="red"
+              justify="flex-start"
+              fullWidth
+              radius={0}
+              leftSection={<IconLogout size={18} />}
+              px="md"
+            >
+              {t('nav.signOut')}
+            </Button>
+          </form>
+        </Stack>
+      </Drawer>
 
       <AppShellMain>
         <LiveUpdates />

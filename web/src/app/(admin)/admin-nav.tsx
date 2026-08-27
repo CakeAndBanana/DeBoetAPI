@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { NavLink } from '@mantine/core';
+import { IconHistory, IconListTree, IconUsers } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
 
 /**
@@ -20,6 +21,7 @@ export function AdminNav({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate
         onClick={onNavigate}
         href="/categories"
         label={t('nav.categories')}
+        leftSection={<IconListTree size={20} />}
         active={pathname.startsWith('/categories')}
       />
       {/* Presentation only — the API refuses editors regardless of what is rendered. */}
@@ -30,6 +32,7 @@ export function AdminNav({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate
             onClick={onNavigate}
             href="/users"
             label={t('nav.users')}
+            leftSection={<IconUsers size={20} />}
             active={pathname.startsWith('/users')}
           />
           <NavLink
@@ -37,6 +40,7 @@ export function AdminNav({ isAdmin, onNavigate }: { isAdmin: boolean; onNavigate
             onClick={onNavigate}
             href="/audit"
             label={t('nav.history')}
+            leftSection={<IconHistory size={20} />}
             active={pathname.startsWith('/audit')}
           />
         </>

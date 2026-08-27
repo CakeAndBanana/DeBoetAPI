@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CategoryNode } from './categories';
 import {
-  canDrop, collectSubtreeIds, countDescendants, countNodes, dropModeFor, dropTargetFrom,
-  filterTree, findNode, indexOf, matches, placementFor, searchTerms, stepFor,
+  branchColour, branchColours, branchHue, canDrop, collectSubtreeIds, countDescendants, countNodes,
+  dropModeFor, dropTargetFrom, filterTree, findNode, indexOf, matches, placementFor,
+  searchTerms, stepFor,
 } from './tree-utils';
 
 /** A node with only the fields the tree helpers actually read. */
@@ -14,6 +15,7 @@ function node(name: string, pathSlug: string, children: CategoryNode[] = []): Ca
     pathSlug,
     metaTitle: null,
     metaDescription: null,
+    redirectToId: null,
     depth: 0,
     sortOrder: 0,
     isActive: true,
@@ -371,5 +373,99 @@ describe('placementFor', () => {
 
   it('is null for a target that is not in the tree', () => {
     expect(placementFor(tree, 'Trees', 'nope', 'after')).toBeNull();
+  });
+});
+
+describe('branchHue', () => {
+  it('is stable for the same id', () => {
+    const id = '01a0219e-4c2b-7f11-9a3d-6b8e2f4c1d70';
+
+    expect(branchHue(id)).toBe(branchHue(id));
+  });
+
+  it('only ever returns a hue from the chosen palette', () => {
+    const palette = new Set([212, 145, 32, 280, 350, 190, 95, 318, 58, 255]);
+
+    for (let i = 0; i < 200; i += 1) {
+      expect(palette.has(branchHue(`01a0219e-4c2b-7f11-9a3d-6b8e2f4c1d${i}`))).toBe(true);
+    }
+  });
+
+  it('tells apart uuids that differ only in their tail', () => {
+    // v7 ids created moments apart share a long prefix, which is the realistic case: two root
+    // categories added in the same session must not come out the same colour.
+    const hues = new Set([
+      branchHue('01a0219e-4c2b-7f11-9a3d-6b8e2f4c1d70'),
+      branchHue('01a0219e-4c2b-7f11-9a3d-6b8e2f4c1d71'),
+      branchHue('01a0219e-4c2b-7f11-9a3d-6b8e2f4c1d72'),
+      branchHue('01a0219e-4c2b-7f11-9a3d-6b8e2f4c1d73'),
+    ]);
+
+    expect(hues.size).toBeGreaterThan(1);
+  });
+
+  it('spreads a realistic set of roots across most of the palette', () => {
+    const hues = new Set(
+      Array.from({ length: 40 }, (_, i) =>
+        branchHue(`01a0219e-4c2b-7f11-9a3d-6b8e2f4c${i.toString(16).padStart(4, '0')}`)),
+    );
+
+    expect(hues.size).toBeGreaterThanOrEqual(8);
+  });
+
+  it('does not throw on an empty id', () => {
+    expect(typeof branchHue('')).toBe('number');
+  });
+});
+
+describe('branchColour', () => {
+  it('is a translucent hsl, so one value suits both themes', () => {
+    expect(branchColour('01a0219e-4c2b-7f11-9a3d-6b8e2f4c1d70'))
+      .toMatch(/^hsl\(\d+ 60% 52% \/ 0\.55\)$/);
+  });
+});
+
+describe('branchColours', () => {
+  const roots = (n: number) =>
+    Array.from({ length: n }, (_, i) => `01a0219e-4c2b-7f11-9a3d-6b8e2f4c${i.toString(16).padStart(4, '0')}`);
+
+  it('gives every root a colour', () => {
+    const ids = roots(6);
+
+    expect([...branchColours(ids).keys()]).toEqual(ids);
+  });
+
+  it('never repeats a colour while the palette holds out', () => {
+    // The failure this exists for: three roots was enough to hand two of them the same hue.
+    const ids = roots(10);
+    const colours = [...branchColours(ids).values()];
+
+    expect(new Set(colours).size).toBe(colours.length);
+  });
+
+  it('keeps the id-derived hue when nothing else wants it', () => {
+    const id = roots(1)[0];
+
+    expect(branchColours([id]).get(id)).toBe(branchColour(id));
+  });
+
+  it('is the same on every render', () => {
+    const ids = roots(8);
+
+    expect([...branchColours(ids).values()]).toEqual([...branchColours(ids).values()]);
+  });
+
+  it('still answers once the palette is exhausted', () => {
+    const ids = roots(30);
+    const colours = branchColours(ids);
+
+    expect(colours.size).toBe(30);
+    for (const id of ids) {
+      expect(colours.get(id)).toMatch(/^hsl\(\d+ 60% 52% \/ 0\.55\)$/);
+    }
+  });
+
+  it('has nothing to say about an empty tree', () => {
+    expect(branchColours([]).size).toBe(0);
   });
 });

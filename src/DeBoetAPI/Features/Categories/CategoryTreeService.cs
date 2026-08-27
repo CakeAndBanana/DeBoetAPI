@@ -15,6 +15,8 @@ public enum CategoryError
     SelfReference,
     DuplicateLink,
     LinkDuplicatesMainParent,
+    RedirectNotFound,
+    RedirectChain,
 }
 
 public sealed record CategoryResult(CategoryError Error, Category? Category = null)
@@ -41,6 +43,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         int sortOrder,
         bool isActive,
         bool isMenu,
+        Guid? redirectToId,
         CancellationToken ct)
     {
         Category? parent = null;
@@ -61,6 +64,14 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryResult.Fail(CategoryError.DuplicateSlug);
         }
 
+        // Guid.Empty stands for "nothing yet": the category has no id of its own to clash with
+        // until it is created, and a brand new one cannot already be a redirect destination.
+        var redirectError = await ValidateRedirectAsync(Guid.Empty, redirectToId, ct);
+        if (redirectError != CategoryError.None)
+        {
+            return CategoryResult.Fail(redirectError);
+        }
+
         var category = new Category
         {
             Name = name,
@@ -72,6 +83,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             SortOrder = sortOrder,
             IsActive = isActive,
             IsMenu = isMenu,
+            RedirectToId = redirectToId,
             CreatedById = audit.ActorId,
             UpdatedById = audit.ActorId,
         };
@@ -95,6 +107,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         int sortOrder,
         bool isActive,
         bool isMenu,
+        Guid? redirectToId,
         CancellationToken ct)
     {
         var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id, ct);
@@ -118,6 +131,12 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryResult.Fail(CategoryError.DuplicateSlug);
         }
 
+        var redirectError = await ValidateRedirectAsync(id, redirectToId, ct);
+        if (redirectError != CategoryError.None)
+        {
+            return CategoryResult.Fail(redirectError);
+        }
+
         // Captured before mutation so the trail records what actually changed.
         var summary = AuditLog.Diff(
             ("name", category.Name, name),
@@ -126,7 +145,8 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             ("metaDescription", category.MetaDescription, metaDescription),
             ("sortOrder", category.SortOrder, sortOrder),
             ("isActive", category.IsActive, isActive),
-            ("isMenu", category.IsMenu, isMenu));
+            ("isMenu", category.IsMenu, isMenu),
+            ("redirectTo", category.RedirectToId, redirectToId));
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
@@ -140,6 +160,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         category.SortOrder = sortOrder;
         category.IsActive = isActive;
         category.IsMenu = isMenu;
+        category.RedirectToId = redirectToId;
         category.UpdatedAt = DateTimeOffset.UtcNow;
         category.UpdatedById = audit.ActorId;
 
@@ -471,6 +492,49 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         path.Split(Separator, StringSplitOptions.RemoveEmptyEntries)
             .Select(segment => Guid.TryParse(segment, out var id) ? id : Guid.Empty)
             .Where(id => id != Guid.Empty);
+
+    /// <summary>
+    /// Checks a proposed redirect.
+    /// <para>
+    /// Redirects are kept to a single hop, enforced from both ends: a category may not point at
+    /// one that already forwards, and one that is already a destination may not be given a
+    /// redirect of its own. That is what makes a cycle unbuildable rather than merely detected,
+    /// and it means a consumer reads one field instead of walking a chain.
+    /// </para>
+    /// </summary>
+    private async Task<CategoryError> ValidateRedirectAsync(
+        Guid categoryId,
+        Guid? redirectToId,
+        CancellationToken ct)
+    {
+        if (redirectToId is null)
+        {
+            return CategoryError.None;
+        }
+
+        if (redirectToId == categoryId)
+        {
+            return CategoryError.SelfReference;
+        }
+
+        var target = await db.Categories.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == redirectToId, ct);
+
+        if (target is null)
+        {
+            return CategoryError.RedirectNotFound;
+        }
+
+        if (target.RedirectToId is not null)
+        {
+            return CategoryError.RedirectChain;
+        }
+
+        var isItselfADestination = categoryId != Guid.Empty
+            && await db.Categories.AnyAsync(c => c.RedirectToId == categoryId, ct);
+
+        return isItselfADestination ? CategoryError.RedirectChain : CategoryError.None;
+    }
 
     private static string ResolveSlug(string? slug, string name) =>
         string.IsNullOrWhiteSpace(slug) ? Slugify(name) : NormalizeSlug(slug);

@@ -29,6 +29,7 @@ export default async function EditCategoryPage({
         initial={{
           name: detail.category.name,
           slug: detail.category.slug,
+          redirectToId: detail.category.redirectToId,
           metaTitle: detail.category.metaTitle ?? '',
           metaDescription: detail.category.metaDescription ?? '',
           sortOrder: Number(detail.category.sortOrder),

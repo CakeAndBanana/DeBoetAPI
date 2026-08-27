@@ -28,6 +28,7 @@ export function CategoryForm({ options, id, initial }: Props) {
     initialValues: {
       name: initial?.name ?? '',
       slug: initial?.slug ?? '',
+      redirectToId: initial?.redirectToId ?? null,
       metaTitle: initial?.metaTitle ?? '',
       metaDescription: initial?.metaDescription ?? '',
       parentId: initial?.parentId ?? null,
@@ -92,6 +93,19 @@ export function CategoryForm({ options, id, initial }: Props) {
             description={t('categories.fieldMetaTitleHelp')}
             {...form.getInputProps('metaTitle')}
           />
+          {/*
+            A category that forwards has no page of its own, so this sits with the fields that
+            decide how it is published rather than with the SEO text.
+          */}
+          <CategoryPicker
+            label={t('categories.fieldRedirect')}
+            placeholder={t('categories.fieldRedirectPlaceholder')}
+            description={t('categories.fieldRedirectHelp')}
+            options={options}
+            exclude={id ? new Set([id]) : undefined}
+            {...form.getInputProps('redirectToId')}
+          />
+
           <Textarea
             label={t('categories.fieldMetaDesc')}
             description={t('categories.fieldMetaDescHelp')}

@@ -33,6 +33,8 @@ async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
 export interface CategoryInput {
   name: string;
   slug?: string;
+  /** Another category this one forwards to, or null for an ordinary category. */
+  redirectToId?: string | null;
   metaTitle?: string;
   metaDescription?: string;
   parentId?: string | null;
@@ -107,6 +109,8 @@ export interface CategoryDetails {
   metaDescription: string | null;
   isActive: boolean;
   isMenu: boolean;
+  /** Where this category forwards to, resolved, or null when it does not. */
+  redirectTo: { id: string; name: string; pathSlug: string } | null;
   childCount: number;
   secondaryParents: { id: string; name: string; pathSlug: string }[];
   createdAt: string;
@@ -166,6 +170,13 @@ export async function categoryDetails(
         metaDescription: detail.category.metaDescription,
         isActive: detail.category.isActive,
         isMenu: detail.category.isMenu,
+        redirectTo: detail.redirectTo
+          ? {
+              id: detail.redirectTo.id,
+              name: detail.redirectTo.name,
+              pathSlug: detail.redirectTo.pathSlug,
+            }
+          : null,
         childCount: detail.children.length,
         secondaryParents: detail.secondaryParents.map((c) => ({
           id: c.id,

@@ -419,7 +419,6 @@ export interface components {
             /** Format: uuid */
             parentId: string;
         };
-        AuditedEntityType: number;
         AuditEntryResponse: {
             /** Format: uuid */
             id: string;
@@ -441,6 +440,7 @@ export interface components {
             breadcrumb: components["schemas"]["CategoryResponse"][];
             children: components["schemas"]["CategoryResponse"][];
             secondaryParents: components["schemas"]["CategoryResponse"][];
+            redirectTo?: null | components["schemas"]["CategoryResponse"];
         };
         CategoryNode: {
             /** Format: uuid */
@@ -450,6 +450,8 @@ export interface components {
             pathSlug: string;
             metaTitle: null | string;
             metaDescription: null | string;
+            /** Format: uuid */
+            redirectToId: null | string;
             /** Format: int32 */
             depth: number | string;
             /** Format: int32 */
@@ -466,6 +468,8 @@ export interface components {
             pathSlug: string;
             metaTitle: null | string;
             metaDescription: null | string;
+            /** Format: uuid */
+            redirectToId: null | string;
             /** Format: uuid */
             parentId: null | string;
             /** Format: int32 */
@@ -491,6 +495,8 @@ export interface components {
             name: string;
             slug?: null | string;
             metaTitle?: null | string;
+            /** Format: uuid */
+            redirectToId?: null | string;
             metaDescription?: null | string;
             /** Format: uuid */
             parentId?: null | string;
@@ -560,6 +566,8 @@ export interface components {
         MoveCategoryRequest: {
             /** Format: uuid */
             newParentId?: null | string;
+            /** Format: int32 */
+            position?: null | number | string;
         };
         PagedResultOfAuditEntryResponse: {
             items: components["schemas"]["AuditEntryResponse"][];
@@ -636,6 +644,8 @@ export interface components {
             name: string;
             slug?: null | string;
             metaTitle?: null | string;
+            /** Format: uuid */
+            redirectToId?: null | string;
             metaDescription?: null | string;
             /** Format: int32 */
             sortOrder?: number | string;
@@ -669,7 +679,8 @@ export interface operations {
     ListAuditEntries: {
         parameters: {
             query?: {
-                entityType?: components["schemas"]["AuditedEntityType"];
+                entityType?: string;
+                action?: string;
                 entityId?: string;
                 changedById?: string;
                 since?: string;

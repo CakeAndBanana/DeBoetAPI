@@ -200,8 +200,16 @@ public static class CategoryEndpoints
             .Select(l => ToResponse(l.Parent))
             .ToListAsync(ct);
 
+        // Resolved here so a site rendering this route can redirect straight away rather than
+        // fetching the destination separately just to learn its address.
+        var redirectTo = category.RedirectToId is null
+            ? null
+            : await db.Categories.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == category.RedirectToId, ct);
+
         return TypedResults.Ok(new CategoryDetailResponse(
-            ToResponse(category), breadcrumb, children, secondaryParents));
+            ToResponse(category), breadcrumb, children, secondaryParents,
+            redirectTo is null ? null : ToResponse(redirectTo)));
     }
 
     /// <summary>
@@ -267,7 +275,8 @@ public static class CategoryEndpoints
     {
         var result = await tree.CreateAsync(
             request.Name, request.Slug, request.MetaTitle, request.MetaDescription,
-            request.ParentId, request.SortOrder, request.IsActive, request.IsMenu, ct);
+            request.ParentId, request.SortOrder, request.IsActive, request.IsMenu,
+            request.RedirectToId, ct);
 
         if (!result.Succeeded)
         {
@@ -295,7 +304,7 @@ public static class CategoryEndpoints
     {
         var result = await tree.UpdateAsync(
             id, request.Name, request.Slug, request.MetaTitle, request.MetaDescription,
-            request.SortOrder, request.IsActive, request.IsMenu, ct);
+            request.SortOrder, request.IsActive, request.IsMenu, request.RedirectToId, ct);
 
         return result.Succeeded
             ? TypedResults.Ok(ToResponse(result.Category!))
@@ -393,7 +402,7 @@ public static class CategoryEndpoints
             : db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.PathSlug == idOrSlug, ct);
 
     private static CategoryResponse ToResponse(Category c) => new(
-        c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle, c.MetaDescription, c.ParentId,
+        c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle, c.MetaDescription, c.RedirectToId, c.ParentId,
         c.Depth, c.SortOrder, c.IsActive, c.IsMenu, c.CreatedById, c.UpdatedById,
         c.CreatedAt, c.UpdatedAt);
 
@@ -418,7 +427,7 @@ public static class CategoryEndpoints
         CategoryNode Build(Category c)
         {
             return new(
-            c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle, c.MetaDescription,
+            c.Id, c.Name, c.Slug, c.PathSlug, c.MetaTitle, c.MetaDescription, c.RedirectToId,
             c.Depth, c.SortOrder, c.IsActive, c.IsMenu,
             childrenByParent.TryGetValue(c.Id, out var kids)
                 ? kids.Select(Build).ToList()
@@ -435,6 +444,8 @@ public static class CategoryEndpoints
         CategoryError.SelfReference => TypedResults.Problem("A category cannot be linked to itself.", statusCode: StatusCodes.Status409Conflict),
         CategoryError.DuplicateLink => TypedResults.Problem("That link already exists.", statusCode: StatusCodes.Status409Conflict),
         CategoryError.LinkDuplicatesMainParent => TypedResults.Problem("That category is already the main parent.", statusCode: StatusCodes.Status409Conflict),
+        CategoryError.RedirectNotFound => TypedResults.Problem("The category to redirect to was not found.", statusCode: StatusCodes.Status404NotFound),
+        CategoryError.RedirectChain => TypedResults.Problem("Redirects are one hop only: a category cannot forward to one that already forwards, and a destination cannot forward on.", statusCode: StatusCodes.Status409Conflict),
         _ => TypedResults.Problem("Unexpected category error.", statusCode: StatusCodes.Status500InternalServerError),
     };
 }

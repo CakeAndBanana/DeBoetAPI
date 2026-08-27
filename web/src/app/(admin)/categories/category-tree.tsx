@@ -13,8 +13,8 @@ import {
 } from '@tabler/icons-react';
 import type { CategoryNode, CategoryOption } from '@/lib/categories';
 import {
-  canDrop, collectSubtreeIds, countDescendants, countNodes, dropTargetFrom, filterTree,
-  findNode, indexOf, placementFor, searchTerms, stepFor, type DropMode,
+  branchColours, canDrop, collectSubtreeIds, countDescendants, countNodes, dropTargetFrom,
+  filterTree, findNode, indexOf, placementFor, searchTerms, stepFor, type DropMode,
 } from '@/lib/tree-utils';
 import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
@@ -42,6 +42,10 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
     ? collectSubtreeIds(findNode(nodes, moving.id) ?? moving)
     : undefined;
   const [pending, startTransition] = useTransition();
+
+  // Assigned from the unfiltered tree, so searching narrows what is shown without repainting
+  // the branches that survive.
+  const tints = useMemo(() => branchColours(nodes.map((n) => n.id)), [nodes]);
 
   const [search, setSearch] = useState('');
   const terms = useMemo(() => searchTerms(search), [search]);
@@ -306,6 +310,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             dropMode={dropMode}
             onStep={step}
             continues={[]}
+            tint={tints.get(node.id) ?? 'var(--mantine-color-default-border)'}
           />
         ))}
       </Stack>
@@ -409,6 +414,12 @@ interface BranchProps {
   dropMode: DropMode;
   onStep: (node: CategoryNode, delta: -1 | 1) => void;
   /**
+   * The colour of the branch this row belongs to, seeded from the root category's id. Passed
+   * down rather than recomputed, so every row under one root matches without each of them
+   * having to know which root that is.
+   */
+  tint: string;
+  /**
    * One entry per indent column. Entry j says whether the ancestor sitting at column j has a
    * further sibling below, which is what decides whether its vertical guide keeps running past
    * this row. The last entry describes this node itself, and drives the tail of its own elbow.
@@ -420,7 +431,7 @@ function Branch(props: BranchProps) {
   const t = useT();
   const {
     node, depth, nodes, collapsed, onToggle, dragged, dropTarget, siteUrl, terms, draggingAllowed,
-    continues, dropMode,
+    continues, dropMode, tint,
   } = props;
 
   // Read from the whole tree, not the filtered view, so the ends of a list are the real ends.
@@ -453,7 +464,12 @@ function Branch(props: BranchProps) {
     <>
       <Group gap={0} wrap="nowrap" align="stretch" pb={4}>
         {continues.map((runsOn, column) => (
-          <TreeGuide key={column} runsOn={runsOn} isElbow={column === continues.length - 1} />
+          <TreeGuide
+            key={column}
+            runsOn={runsOn}
+            isElbow={column === continues.length - 1}
+            colour={tint}
+          />
         ))}
 
       <Card
@@ -549,6 +565,16 @@ function Branch(props: BranchProps) {
 
             {!node.isActive && <Badge color="red" size="sm">{t('categories.inactive')}</Badge>}
             {!node.isMenu && <Badge color="blue" size="sm">{t('categories.offMenu')}</Badge>}
+            {/*
+              The destination is named, not just flagged: "redirects" alone would send you
+              hunting through the tree to learn where. The whole tree is already here, so
+              looking it up costs nothing.
+            */}
+            {node.redirectToId && (
+              <Badge color="grape" size="sm" variant="light">
+                {t('categories.redirects')} &rarr; {findNode(nodes, node.redirectToId)?.name ?? '?'}
+              </Badge>
+            )}
             {hasChildren && isCollapsed && (
               <Badge color="gray" variant="light" size="sm">
                 {t('categories.hidden', { count: hiddenCount })}
@@ -665,8 +691,14 @@ const GUIDE_LINE = 11;
  * Absolutely positioned inside a stretched flex cell, so the lines span the row's padding too
  * and meet the next row without a gap.
  */
-function TreeGuide({ runsOn, isElbow }: { runsOn: boolean; isElbow: boolean }) {
-  const colour = 'var(--mantine-color-default-border)';
+function TreeGuide({
+  runsOn, isElbow, colour,
+}: {
+  runsOn: boolean;
+  isElbow: boolean;
+  /** The branch's own tint, so one root's subtree is distinguishable from the next. */
+  colour: string;
+}) {
   const line = { position: 'absolute' as const, background: colour };
 
   return (

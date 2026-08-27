@@ -9,6 +9,7 @@ function node(name: string, pathSlug: string, children: CategoryNode[] = []): Ca
     pathSlug,
     metaTitle: null,
     metaDescription: null,
+    redirectToId: null,
     depth: 0,
     sortOrder: 0,
     isActive: true,

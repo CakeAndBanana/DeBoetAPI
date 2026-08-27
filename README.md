@@ -99,6 +99,34 @@ and an initial password and hands it to the new user directly.
 Any password an administrator sets at creation or at reset — is temporary. 
 The user would have to set up a new password on the initial login
 
+## Category redirects
+
+A category can forward to another one. It is for a node that exists to organise the tree but
+has nothing of its own to show: *Christmas Decorations* groups things, so its address should
+take a visitor to *Christmas Trees* rather than a bare listing.
+
+Set `redirectToId` when creating or updating a category. `GET /api/v1/categories/{idOrSlug}`
+then returns the destination already resolved, so a site can answer in one request:
+
+```jsonc
+{
+  "category":   { "name": "Christmas Decorations", "pathSlug": "christmas-christmasdecorations" },
+  "redirectTo": { "name": "Christmas Trees",       "pathSlug": "christmas-christmastrees" }
+}
+```
+
+The API records the intent; the website turns it into the HTTP redirect, and chooses whether
+that is a 301 or a 302.
+
+**One hop only**, enforced from both ends: a category may not point at one that already
+forwards, and a category that is already a destination may not be given a redirect of its own.
+Both are refused with a 409. That makes a cycle unbuildable rather than merely detected, and it
+means a consumer reads one field instead of walking a chain.
+
+Deleting the destination clears the redirect (`ON DELETE SET NULL`) rather than blocking the
+delete or taking the pointing category with it — the source is still a real category, it simply
+stops forwarding.
+
 ## Admin panel
 
 A Next.js app in [web/](web/) for managing the category tree, the accounts that may edit it,

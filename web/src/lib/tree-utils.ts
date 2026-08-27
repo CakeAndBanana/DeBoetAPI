@@ -240,3 +240,83 @@ export function stepFor(nodes: CategoryNode[], id: string, delta: -1 | 1): Place
 
   return { parentId: found.parentId, position };
 }
+
+/**
+ * Hues for the branch tints, chosen rather than generated.
+ *
+ * A hue straight off a hash lands anywhere, including the muddy yellow-greens and the muted
+ * browns that look like a rendering fault. Ten spaced, clean hues stay distinguishable from
+ * each other at a glance and pleasant at low saturation, which is the whole point of the
+ * effect: enough colour to tell branches apart, not enough to compete with the content.
+ */
+const BRANCH_HUES = [212, 145, 32, 280, 350, 190, 95, 318, 58, 255];
+
+/**
+ * A stable hue for a branch, derived from its root category's id.
+ *
+ * Derived rather than stored, so it costs no schema, no migration and no decision when a
+ * category is created — and it never drifts, because an id never changes. A rename or a
+ * reorder leaves the colour alone; only moving a category to a different root re-tints it,
+ * which is exactly the moment its branch really did change.
+ */
+export function branchHue(id: string): number {
+  let hash = 0;
+
+  for (let i = 0; i < id.length; i += 1) {
+    // The time-ordered prefix of a v7 uuid is nearly identical between siblings created
+    // together, so every character has to feed the hash for the tail to break the tie.
+    hash = (Math.imul(hash, 31) + id.charCodeAt(i)) >>> 0;
+  }
+
+  return BRANCH_HUES[hash % BRANCH_HUES.length];
+}
+
+/**
+ * The tint itself, as a CSS colour.
+ *
+ * Semi-transparent so it settles onto whatever is behind it: the same value reads as a soft
+ * pastel on a light background and a muted line on a dark one, with no second palette and no
+ * theme-dependent branch.
+ */
+export function branchColour(id: string): string {
+  return `hsl(${branchHue(id)} 60% 52% / 0.55)`;
+}
+
+/**
+ * A colour per root, each one different from the others.
+ *
+ * The id alone is not enough: ten hues and a handful of roots collide often — in testing,
+ * three roots was enough to give two of them the same tint, which defeats the point. So the
+ * hue derived from the id is a *preference*, and a root whose preference is already taken
+ * steps to the next free one.
+ *
+ * Order matters, and it is the tree's own order, so the result is the same on every render and
+ * for every viewer. A root keeps its colour as long as no new root ahead of it wants the same
+ * one; beyond `BRANCH_HUES.length` roots the palette repeats, because more distinguishable
+ * soft hues than that do not exist.
+ */
+export function branchColours(rootIds: string[]): Map<string, string> {
+  const taken = new Set<number>();
+  const colours = new Map<string, string>();
+
+  for (const id of rootIds) {
+    const preferred = branchHue(id);
+    let hue = preferred;
+
+    if (taken.has(preferred) && taken.size < BRANCH_HUES.length) {
+      const from = BRANCH_HUES.indexOf(preferred);
+      for (let step = 1; step < BRANCH_HUES.length; step += 1) {
+        const candidate = BRANCH_HUES[(from + step) % BRANCH_HUES.length];
+        if (!taken.has(candidate)) {
+          hue = candidate;
+          break;
+        }
+      }
+    }
+
+    taken.add(hue);
+    colours.set(id, `hsl(${hue} 60% 52% / 0.55)`);
+  }
+
+  return colours;
+}

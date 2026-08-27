@@ -130,6 +130,16 @@ function Details({
         </Field>
       )}
 
+      <Field label={t('details.redirectsTo')}>
+        {details.redirectTo ? (
+          <Text size="sm">
+            {details.redirectTo.name} <Code>{details.redirectTo.pathSlug}</Code>
+          </Text>
+        ) : (
+          <Text size="sm" c="dimmed">{t('details.noRedirect')}</Text>
+        )}
+      </Field>
+
       <Divider />
 
       <Field label={t('categories.fieldMetaTitle')}>
