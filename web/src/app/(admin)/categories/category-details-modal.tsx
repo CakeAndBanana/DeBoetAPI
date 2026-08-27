@@ -7,6 +7,7 @@ import {
 } from '@mantine/core';
 import { IconExternalLink, IconHistory, IconPencil } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
+import { Timestamp } from '@/components/timestamp';
 import { categoryDetails, type CategoryDetails } from './actions';
 
 interface Props {
@@ -175,14 +176,14 @@ function Details({
 
       <Field label={t('details.created')}>
         <Text size="sm">
-          {formatWhen(details.createdAt)}
+          <Timestamp value={details.createdAt} />
           {details.createdBy && <> {t('details.by')} <strong>{details.createdBy}</strong></>}
         </Text>
       </Field>
 
       <Field label={t('details.lastEdited')}>
         <Text size="sm">
-          {formatWhen(details.updatedAt)}
+          <Timestamp value={details.updatedAt} />
           {details.updatedBy && <> {t('details.by')} <strong>{details.updatedBy}</strong></>}
         </Text>
         {details.lastAction && (
@@ -228,11 +229,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/**
- * Rendered on the client so it lands in the reader's own timezone. The API sends UTC offsets,
- * which a server render would resolve against the container's clock instead.
- */
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.valueOf()) ? iso : date.toLocaleString();
-}

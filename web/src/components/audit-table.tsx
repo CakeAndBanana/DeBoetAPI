@@ -1,6 +1,8 @@
 import {
-  Badge, Code, Table, TableTbody, TableTd, TableTh, TableThead, TableTr, Text,
+  Badge, Code, Table, TableScrollContainer, TableTbody, TableTd, TableTh, TableThead, TableTr,
+  Text,
 } from '@mantine/core';
+import { Timestamp } from './timestamp';
 import type { AuditEntry } from '@/lib/categories';
 import type { MessageKey } from '@/i18n';
 import { getT } from '@/i18n/server';
@@ -32,44 +34,58 @@ export async function AuditTable({ entries, showEntity = true }: { entries: Audi
     return <Text c="dimmed">{t('audit.empty')}</Text>;
   }
 
+  // The short columns size to their content instead of to a fixed width. Pinning them was
+  // what broke this table once it was translated: a date wrapped onto three lines, tripling
+  // every row's height, and the action badge was clipped to its first letter.
+  const tight = { whiteSpace: 'nowrap' as const, width: '1%' };
+
   return (
-    <Table striped highlightOnHover withTableBorder>
-      <TableThead>
-        <TableTr>
-          <TableTh w={170}>{t('audit.when')}</TableTh>
-          <TableTh w={140}>{t('audit.who')}</TableTh>
-          <TableTh w={140}>{t('audit.action')}</TableTh>
-          {showEntity && <TableTh w={220}>{t('audit.record')}</TableTh>}
-          <TableTh>{t('audit.whatChanged')}</TableTh>
-        </TableTr>
-      </TableThead>
-      <TableTbody>
-        {entries.map((entry) => (
-          <TableTr key={entry.id}>
-            <TableTd>
-              <Text size="sm">{new Date(entry.changedAt).toLocaleString()}</Text>
-            </TableTd>
-            <TableTd>
-              {/* Snapshotted at write time, so it still reads correctly after an account is removed. */}
-              <Text size="sm">{entry.changedByName}</Text>
-            </TableTd>
-            <TableTd>
-              <Badge color={COLOURS[entry.action] ?? 'gray'} variant="light">
-                {t(`action.${entry.action}` as MessageKey)}
-              </Badge>
-            </TableTd>
-            {showEntity && (
-              <TableTd>
-                <Text size="sm">{entry.entityName}</Text>
-                <Text size="xs" c="dimmed">{entry.entityType}</Text>
-              </TableTd>
-            )}
-            <TableTd>
-              {entry.summary ? <Code>{entry.summary}</Code> : <Text c="dimmed" size="sm">—</Text>}
-            </TableTd>
+    // Scrolls the table rather than the page when it will not fit — on a phone it never does.
+    <TableScrollContainer minWidth={720}>
+      <Table striped highlightOnHover withTableBorder>
+        <TableThead>
+          <TableTr>
+            <TableTh style={tight}>{t('audit.when')}</TableTh>
+            <TableTh style={tight}>{t('audit.who')}</TableTh>
+            <TableTh style={tight}>{t('audit.action')}</TableTh>
+            {showEntity && <TableTh style={tight}>{t('audit.record')}</TableTh>}
+            <TableTh>{t('audit.whatChanged')}</TableTh>
           </TableTr>
-        ))}
-      </TableTbody>
-    </Table>
+        </TableThead>
+        <TableTbody>
+          {entries.map((entry) => (
+            <TableTr key={entry.id}>
+              <TableTd style={tight}>
+                <Text size="sm" component="span">
+                  <Timestamp value={entry.changedAt} />
+                </Text>
+              </TableTd>
+              <TableTd style={tight}>
+                {/* Snapshotted at write time, so it still reads correctly after an account is removed. */}
+                <Text size="sm">{entry.changedByName}</Text>
+              </TableTd>
+              <TableTd style={tight}>
+                {/* A Badge clips its own label, so it needs room rather than a fixed column. */}
+                <Badge color={COLOURS[entry.action] ?? 'gray'} variant="light">
+                  {t(`action.${entry.action}` as MessageKey)}
+                </Badge>
+              </TableTd>
+              {showEntity && (
+                <TableTd style={tight}>
+                  <Text size="sm">{entry.entityName}</Text>
+                  <Text size="xs" c="dimmed">{entry.entityType}</Text>
+                </TableTd>
+              )}
+              {/* Takes whatever is left, and wraps: a summary can run to a couple of lines. */}
+              <TableTd>
+                {entry.summary
+                  ? <Code style={{ whiteSpace: 'normal' }}>{entry.summary}</Code>
+                  : <Text c="dimmed" size="sm">—</Text>}
+              </TableTd>
+            </TableTr>
+          ))}
+        </TableTbody>
+      </Table>
+    </TableScrollContainer>
   );
 }
