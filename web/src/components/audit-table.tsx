@@ -65,8 +65,17 @@ export async function AuditTable({ entries, showEntity = true }: { entries: Audi
                 <Text size="sm">{entry.changedByName}</Text>
               </TableTd>
               <TableTd style={tight}>
-                {/* A Badge clips its own label, so it needs room rather than a fixed column. */}
-                <Badge color={COLOURS[entry.action] ?? 'gray'} variant="light">
+                {/*
+                  Mantine gives a Badge label `overflow: hidden; text-overflow: ellipsis`, which
+                  makes its minimum content width zero — so a shrink-to-fit column collapses it
+                  to one letter and an ellipsis. Turning the clipping off gives the label a real
+                  minimum width, and the column then sizes to the whole word.
+                */}
+                <Badge
+                  color={COLOURS[entry.action] ?? 'gray'}
+                  variant="light"
+                  styles={{ label: { overflow: 'visible', textOverflow: 'clip' } }}
+                >
                   {t(`action.${entry.action}` as MessageKey)}
                 </Badge>
               </TableTd>
