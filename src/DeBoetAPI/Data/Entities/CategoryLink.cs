@@ -1,5 +1,8 @@
 namespace DeBoetAPI.Data.Entities;
 
+/// <summary>
+/// CategoryLink represents a many-to-many relationship between categories, allowing for hierarchical or related category structures.
+/// </summary>
 public class CategoryLink
 {
     public Guid ParentId { get; set; }

@@ -1,5 +1,8 @@
 namespace DeBoetAPI.Features.Auth;
 
+/// <summary>
+/// Authentication claims used in the application.
+/// </summary>
 public static class AuthClaims
 {
     public const string Role = "role";
@@ -7,6 +10,10 @@ public static class AuthClaims
     public const string MustChangePassword = "must_change_password";
 }
 
+/// <summary>
+/// Authentication policies used in the application. 
+/// These are used to define roles and permissions for the users that are using the application.
+/// </summary>
 public static class AuthPolicies
 {
     public const string Admin = "Admin";

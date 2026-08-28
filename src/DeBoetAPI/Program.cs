@@ -39,6 +39,7 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(
     connectionString,
     npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history")));
 
+// Configure IdentityCore with custom options for user management, password policies, and lockout settings.
 builder.Services.AddIdentityCore<AppUser>(options =>
     {
         options.User.RequireUniqueEmail = true;
@@ -60,6 +61,7 @@ builder.Services.AddScoped<AuditLog>();
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Jwt section is not configured.");
 
+// Builder for the JWT Bearer authentication scheme, configuring token validation parameters and claim types.
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -81,6 +83,7 @@ builder.Services
         };
     });
 
+// Authorization policies for Admin and Editor roles, requiring that users have changed their password.
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(AuthPolicies.Admin, policy => policy
         .RequireRole(AuthPolicies.AdminRole)
@@ -89,6 +92,7 @@ builder.Services.AddAuthorizationBuilder()
         .RequireRole(AuthPolicies.EditorRole, AuthPolicies.AdminRole)
         .RequireAssertion(HasChangedPassword));
 
+// Checks if the user has changed their password by verifying the absence of the "must_change_password" claim.
 static bool HasChangedPassword(AuthorizationHandlerContext context) =>
     !context.User.HasClaim(c => c.Type == AuthClaims.MustChangePassword && c.Value == "true");
 
@@ -97,6 +101,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddValidation();
 builder.Services.AddAppOpenApi();
 
+// CORS configuration, allowing requests from specified origins defined in the configuration.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 {
@@ -106,6 +111,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
     }
 }));
 
+// Rate limiting configuration for authentication endpoints, limiting the number of requests per minute to prevent abuse.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -117,6 +123,7 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+// Health checks for the PostgreSQL database, tagged as "ready" for readiness probes.
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString, name: "postgres", tags: ["ready"]);
 
@@ -164,6 +171,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+// Use Serilog request logging with custom log level determination based on HTTP response status codes and request paths.
 app.UseSerilogRequestLogging(options =>
 {
     options.GetLevel = (http, _, ex) =>
@@ -194,6 +202,7 @@ app.MapHealthChecks("/health/ready", new()
     Predicate = check => check.Tags.Contains("ready"),
 });
 
+// Mapping endpoints for the application.
 app.MapAuthEndpoints();
 app.MapItemEndpoints();
 app.MapCategoryEndpoints();

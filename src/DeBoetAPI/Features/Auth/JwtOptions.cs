@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace DeBoetAPI.Features.Auth;
 
+/// <summary>
+/// Detaulf JWT options used for configuring JWT authentication in the application.
+/// </summary>
 public sealed class JwtOptions
 {
     public const string SectionName = "Jwt";

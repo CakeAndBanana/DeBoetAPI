@@ -69,6 +69,10 @@ public sealed class ChangeStream
         }
     }
 
+    /// <summary>
+    /// Unscribes a channel from the change stream. This method is called when a subscription is disposed.
+    /// </summary>
+    /// <param name="channel">The channel to unsubscribe.</param>
     private void Unsubscribe(Channel<ChangeEvent> channel)
     {
         lock (_gate)
@@ -79,6 +83,12 @@ public sealed class ChangeStream
         channel.Writer.TryComplete();
     }
 
+    /// <summary>
+    /// Subscription class that represents a subscription to the change stream. 
+    /// When disposed, it unsubscribes the channel from the change stream.
+    /// </summary>
+    /// <param name="stream">The change stream to which the subscription belongs.</param>
+    /// <param name="channel">The channel to unsubscribe.   </param>
     private sealed class Subscription(ChangeStream stream, Channel<ChangeEvent> channel) : IDisposable
     {
         public void Dispose() => stream.Unsubscribe(channel);

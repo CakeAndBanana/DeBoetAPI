@@ -10,51 +10,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DeBoetAPI.Features.Users;
 
-public sealed record CreateUserRequest
-{
-    [Required, MaxLength(256)]
-    public string UserName { get; init; } = string.Empty;
-
-    [Required, EmailAddress, MaxLength(256)]
-    public string Email { get; init; } = string.Empty;
-
-    [Required, MaxLength(100)]
-    public string DisplayName { get; init; } = string.Empty;
-
-    /// <summary>The account starts on this password and must change it at first login.</summary>
-    [Required, MinLength(8), MaxLength(128)]
-    public string Password { get; init; } = string.Empty;
-
-    /// <summary>Empty grants no rights at all — the account can sign in and nothing more.</summary>
-    public IReadOnlyList<string> Roles { get; init; } = [];
-}
-
-public sealed record SetRolesRequest
-{
-    [Required]
-    public IReadOnlyList<string> Roles { get; init; } = [];
-}
-
-public sealed record ResetPasswordRequest
-{
-    [Required, MinLength(8), MaxLength(128)]
-    public string NewPassword { get; init; } = string.Empty;
-}
-
-public sealed record ManagedUserResponse(
-    Guid Id,
-    string UserName,
-    string Email,
-    string DisplayName,
-    IReadOnlyList<string> Roles,
-    bool MustChangePassword,
-    bool IsDisabled,
-    DateTimeOffset CreatedAt);
-
+/// <summary>
+/// The UserEndpoints class defines the API endpoints for managing users in the application.
+/// </summary>
 public static class UserEndpoints
 {
     private static readonly DateTimeOffset DisabledUntil = new(9999, 12, 31, 23, 59, 59, TimeSpan.Zero);
 
+    /// <summary>
+    /// Mapping the user endpoints to the specified IEndpointRouteBuilder.
+    /// </summary>
+    /// <param name="app">The IEndpointRouteBuilder to map the endpoints to.</param>
+    /// <returns>The updated IEndpointRouteBuilder.</returns>
     public static IEndpointRouteBuilder MapUserEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/v1/users")
@@ -71,6 +38,16 @@ public static class UserEndpoints
         return app;
     }
 
+    /// <summary>
+    /// Lists users with optional search and pagination parameters.
+    /// </summary>
+    /// <param name="db">The application database context.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <param name="search">The search term.</param>
+    /// <param name="page">The page number.</param>
+    /// <param name="pageSize">The page size.</param>
+    /// <returns>The paged list of users.</returns>
     private static async Task<Ok<PagedResult<ManagedUserResponse>>> ListAsync(
         AppDbContext db,
         UserManager<AppUser> userManager,
@@ -107,6 +84,15 @@ public static class UserEndpoints
         return TypedResults.Ok(new PagedResult<ManagedUserResponse>(results, p, size, total));
     }
 
+    /// <summary>
+    /// Creates a new user with the specified details and roles, and returns the created user information.
+    /// </summary>
+    /// <param name="request">The request containing the user details and roles.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <param name="audit">The audit log.</param>
+    /// <param name="db">The application database context.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The created user information.</returns>
     private static async Task<Results<Created<ManagedUserResponse>, ValidationProblem, ProblemHttpResult>> CreateAsync(
         CreateUserRequest request,
         UserManager<AppUser> userManager,
@@ -147,6 +133,18 @@ public static class UserEndpoints
         return TypedResults.Created($"/api/v1/users/{user.Id}", response);
     }
 
+    /// <summary>
+    /// Roles are set for a user with the specified ID, and the updated user information is returned.
+    /// </summary>
+    /// <param name="id">The ID of the user for whom to set roles.</param>
+    /// <param name="request">The request containing the roles to set.</param>
+    /// <param name="principal">The principal representing the current user.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <param name="tokens">The token service.</param>
+    /// <param name="audit">The audit log.</param>
+    /// <param name="db">The application database context.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The updated user information.</returns>
     private static async Task<Results<Ok<ManagedUserResponse>, NotFound, ProblemHttpResult>> SetRolesAsync(
         Guid id,
         SetRolesRequest request,
@@ -188,6 +186,17 @@ public static class UserEndpoints
         return TypedResults.Ok(await ToResponseAsync(user, userManager));
     }
 
+    /// <summary>
+    /// The resets the password for a user with the specified ID and returns a no-content response if successful.
+    /// </summary>
+    /// <param name="id">The ID of the user for whom to reset the password.</param>
+    /// <param name="request">The request containing the new password.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <param name="tokens">The token service.</param>
+    /// <param name="audit">The audit log.</param>
+    /// <param name="db">The application database context.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the operation.</returns>
     private static async Task<Results<NoContent, NotFound, ValidationProblem>> ResetPasswordAsync(
         Guid id,
         ResetPasswordRequest request,
@@ -222,16 +231,50 @@ public static class UserEndpoints
         return TypedResults.NoContent();
     }
 
+    /// <summary>
+    /// Disables the user account with the specified ID and returns a no-content response if successful.
+    /// </summary>
+    /// <param name="id">The ID of the user to disable.</param>
+    /// <param name="principal">The principal representing the authenticated user.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <param name="tokens">The token service.</param>
+    /// <param name="audit">The audit log.</param>
+    /// <param name="db">The application database context.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the operation.</returns>
     private static Task<Results<NoContent, NotFound, ProblemHttpResult>> DisableAsync(
         Guid id, ClaimsPrincipal principal, UserManager<AppUser> userManager,
         TokenService tokens, AuditLog audit, AppDbContext db, CancellationToken ct) =>
         SetEnabledAsync(id, false, principal, userManager, tokens, audit, db, ct);
 
+    /// <summary>
+    /// Enables the user account with the specified ID and returns a no-content response if successful.
+    /// </summary>
+    /// <param name="id">The ID of the user to enable.</param>
+    /// <param name="principal">The principal representing the authenticated user.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <param name="tokens">The token service.</param>
+    /// <param name="audit">The audit log.</param>
+    /// <param name="db">The application database context.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the operation.</returns>
     private static Task<Results<NoContent, NotFound, ProblemHttpResult>> EnableAsync(
         Guid id, ClaimsPrincipal principal, UserManager<AppUser> userManager,
         TokenService tokens, AuditLog audit, AppDbContext db, CancellationToken ct) =>
         SetEnabledAsync(id, true, principal, userManager, tokens, audit, db, ct);
 
+    /// <summary>
+    /// Sets the enabled state of a user account with the specified ID and returns a no-content response if successful.
+    /// </summary>
+    /// <param name="id">The ID of the user to set the enabled state for.</param>
+    /// <param name="enabled">The enabled state to set.</param>
+    /// <param name="principal">The principal representing the authenticated user.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <param name="tokens">The token service.</param>
+    /// <param name="audit">The audit log.</param>
+    /// <param name="db">The application database context.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the operation.</returns>
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> SetEnabledAsync(
         Guid id,
         bool enabled,
@@ -269,6 +312,12 @@ public static class UserEndpoints
         return TypedResults.NoContent();
     }
 
+    /// <summary>
+    /// Converts an AppUser entity to a ManagedUserResponse DTO, including the user's roles.
+    /// </summary>
+    /// <param name="user">The AppUser entity to convert.</param>
+    /// <param name="userManager">The user manager.</param>
+    /// <returns>The ManagedUserResponse DTO.</returns>
     private static async Task<ManagedUserResponse> ToResponseAsync(AppUser user, UserManager<AppUser> userManager)
     {
         var roles = await userManager.GetRolesAsync(user);
@@ -284,6 +333,11 @@ public static class UserEndpoints
             user.CreatedAt);
     }
 
+    /// <summary>
+    /// Checks if the provided roles are valid and returns an error message if any unknown roles are found.
+    /// </summary>
+    /// <param name="roles">The list of roles to validate.</param>
+    /// <returns>The error message if any unknown roles are found; otherwise, null.</returns>
     private static string? InvalidRole(IReadOnlyList<string> roles)
     {
         var unknown = roles.Except(AuthPolicies.AssignableRoles, StringComparer.Ordinal).ToList();
@@ -293,12 +347,22 @@ public static class UserEndpoints
             : $"Unknown role(s): {string.Join(", ", unknown)}. Valid roles are {string.Join(", ", AuthPolicies.AssignableRoles)}.";
     }
 
+    /// <summary>
+    /// Describes the provided roles as a comma-separated string, or "(none)" if the list is empty.
+    /// </summary>
+    /// <param name="roles">The list of roles to describe.</param>
+    /// <returns>The comma-separated string of roles or "(none)" if the list is empty.</returns>
     private static string Describe(IEnumerable<string> roles)
     {
         var list = roles.ToList();
         return list.Count == 0 ? "(none)" : string.Join(", ", list);
     }
 
+    /// <summary>
+    /// Converts the errors from an IdentityResult into a dictionary where the keys are error codes and the values are arrays of error descriptions.
+    /// </summary>
+    /// <param name="result">The IdentityResult containing the errors.</param>
+    /// <returns>The dictionary of errors.</returns>
     private static Dictionary<string, string[]> ToErrors(IdentityResult result) =>
         result.Errors
             .GroupBy(e => e.Code)

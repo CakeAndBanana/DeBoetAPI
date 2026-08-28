@@ -10,6 +10,7 @@ namespace DeBoetAPI.Features.Items;
 
 /// <summary>
 /// This isnt really needed but maybe can be used in the furture
+/// Not putting effort into this right now, just a placeholder for the endpoints
 /// </summary>
 public static class ItemEndpoints
 {
@@ -211,8 +212,6 @@ public static class ItemEndpoints
     {
         var ownerId = principal.GetUserId();
 
-        // Loaded rather than bulk-deleted: the audit entry needs the name, and a deletion is
-        // the event most worth being able to look up afterwards.
         var item = await db.Items.FirstOrDefaultAsync(i => i.Id == id && i.OwnerId == ownerId, ct);
         if (item is null)
         {

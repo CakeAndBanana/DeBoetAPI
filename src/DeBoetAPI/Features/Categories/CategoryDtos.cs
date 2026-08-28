@@ -71,12 +71,34 @@ public sealed record MoveCategoryRequest
     public int? Position { get; init; }
 }
 
+/// <summary>
+/// Adds a secondary parent to a category. The category will then appear under both parents in the tree.
+/// </summary>
 public sealed record AddCategoryLinkRequest
 {
     [Required]
     public Guid ParentId { get; init; }
 }
 
+/// <summary>
+/// Category response DTO used for returning category information to the client.
+/// </summary>
+/// <param name="Id">The category ID.</param>
+/// <param name="Name">The category name.</param>
+/// <param name="Slug">The category slug.</param>
+/// <param name="PathSlug">The category path slug.</param>
+/// <param name="MetaTitle">The SEO meta title.</param>
+/// <param name="MetaDescription">The SEO meta description.</param>
+/// <param name="RedirectToId">The ID of the category this one forwards to.</param>
+/// <param name="ParentId">The ID of the parent category.</param>
+/// <param name="Depth">The depth of the category in the tree.</param>
+/// <param name="SortOrder">The sort order of the category.</param>
+/// <param name="IsActive">Indicates if the category is active.</param>
+/// <param name="IsMenu">Indicates if the category appears in the menu.</param>
+/// <param name="CreatedById">The ID of the user who created the category.</param>
+/// <param name="UpdatedById">The ID of the user who last updated the category.</param>
+/// <param name="CreatedAt">The date and time the category was created.</param>
+/// <param name="UpdatedAt">The date and time the category was last updated.</param>
 public sealed record CategoryResponse(
     Guid Id,
     string Name,
@@ -97,17 +119,36 @@ public sealed record CategoryResponse(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
+/// <summary>
+/// Category detail response DTO used for returning detailed category information to the client, including breadcrumb, children, secondary parents, and optional redirect information.
+/// </summary>
+/// <param name="Category">The main category information.</param>
+/// <param name="Breadcrumb">The breadcrumb trail for the category.</param>
+/// <param name="Children">The child categories.</param>
+/// <param name="SecondaryParents">The secondary parent categories.</param>
+/// <param name="RedirectTo">The category this one forwards to, if applicable.</param>
 public sealed record CategoryDetailResponse(
     CategoryResponse Category,
     IReadOnlyList<CategoryResponse> Breadcrumb,
     IReadOnlyList<CategoryResponse> Children,
     IReadOnlyList<CategoryResponse> SecondaryParents,
-    /// <summary>
-    /// The category this one forwards to, resolved, so a site can issue the redirect from one
-    /// response without a second lookup. Null unless a redirect is set.
-    /// </summary>
     CategoryResponse? RedirectTo = null);
 
+/// <summary>
+/// Category node DTO used for returning category tree information to the client, including children nodes.
+/// </summary>
+/// <param name="Id">The category ID.</param>
+/// <param name="Name">The category name.</param>
+/// <param name="Slug">The category slug.</param>
+/// <param name="PathSlug">The category path slug.</param>
+/// <param name="MetaTitle">The SEO meta title.</param>
+/// <param name="MetaDescription">The SEO meta description.</param>
+/// <param name="RedirectToId">The ID of the category this one forwards to.</param>
+/// <param name="Depth">The depth of the category in the tree.</param>
+/// <param name="SortOrder">The sort order of the category.</param>
+/// <param name="IsActive">Indicates if the category is active.</param>
+/// <param name="IsMenu">Indicates if the category appears in the menu.</param>
+/// <param name="Children">The child categories.</param>
 public sealed record CategoryNode(
     Guid Id,
     string Name,
@@ -122,8 +163,16 @@ public sealed record CategoryNode(
     bool IsMenu,
     IReadOnlyList<CategoryNode> Children);
 
+/// <summary>
+/// Delete catergory response DTO used for returning information about promoted child categories after a category deletion.
+/// </summary>
+/// <param name="PromotedChildIds"></param>
 public sealed record DeleteCategoryResponse(IReadOnlyList<Guid> PromotedChildIds);
 
+/// <summary>
+/// Set item categories request DTO used for assigning categories to an item, including a list of category IDs and an optional primary category ID.
+/// Not really used yet as items aren't a thing. could be WIP thing to do later
+/// </summary>
 public sealed record SetItemCategoriesRequest
 {
     [Required]

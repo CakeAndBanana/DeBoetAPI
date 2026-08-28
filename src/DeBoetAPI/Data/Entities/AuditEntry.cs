@@ -8,6 +8,9 @@ public enum AuditedEntityType
     User,
 }
 
+/// <summary>
+/// Actions that can be audited. Add a member per action that is auditable.
+/// </summary>
 public enum AuditAction
 {
     Created,

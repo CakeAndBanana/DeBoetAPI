@@ -394,8 +394,12 @@ public static class CategoryEndpoints
     }
 
     /// <summary>
-    /// Resolves a route segment: a GUID, or the full slug route
+    /// Finds a category by ID or slug. Returns null if not found. This is used for endpoints that accept either an ID or a slug to identify a category.
     /// </summary>
+    /// <param name="db">The database context.</param>
+    /// <param name="idOrSlug">The ID or slug of the category to find.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The found category or null if not found.</returns>
     private static Task<Category?> FindAsync(AppDbContext db, string idOrSlug, CancellationToken ct) =>
         Guid.TryParse(idOrSlug, out var id)
             ? db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, ct)
@@ -409,6 +413,9 @@ public static class CategoryEndpoints
     /// <summary>
     /// Assembles the nested shape from a flat, depth-ordered list.
     /// </summary>
+    /// <param name="flat">The flat, depth-ordered list of categories.</param>
+    /// <param name="rootId">The ID of the root category, if applicable.</param>
+    /// <returns>The nested category tree.</returns>
     private static IReadOnlyList<CategoryNode> BuildTree(List<Category> flat, Guid? rootId)
     {
         var childrenByParent = flat
@@ -435,6 +442,11 @@ public static class CategoryEndpoints
         }
     }
 
+    /// <summary>
+    /// Gives the appropriate ProblemHttpResult for a given CategoryError. 
+    /// </summary>
+    /// <param name="error">The category error.</param>
+    /// <returns>The problem HTTP result.</returns>
     private static ProblemHttpResult Problem(CategoryError error) => error switch
     {
         CategoryError.NotFound => TypedResults.Problem("Category not found.", statusCode: StatusCodes.Status404NotFound),

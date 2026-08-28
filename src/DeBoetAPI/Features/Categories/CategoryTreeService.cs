@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DeBoetAPI.Features.Categories;
 
+/// <summary>
+/// Errors that can occur when performing operations on categories, such as creating, updating, moving, or deleting them.
+/// </summary>
 public enum CategoryError
 {
     None,
@@ -19,6 +22,11 @@ public enum CategoryError
     RedirectChain,
 }
 
+/// <summary>
+/// Catergory result returned from operations on categories, such as creating, updating, moving, or deleting them.
+/// </summary>
+/// <param name="Error">The error that occurred, if any.</param>
+/// <param name="Category">The category, if the operation was successful.</param>
 public sealed record CategoryResult(CategoryError Error, Category? Category = null)
 {
     public bool Succeeded => Error == CategoryError.None;
@@ -28,12 +36,31 @@ public sealed record CategoryResult(CategoryError Error, Category? Category = nu
     public static CategoryResult Fail(CategoryError error) => new(error);
 }
 
+/// <summary>
+/// Path slug separator used to delimit segments in the full route of a category.
+/// </summary>
+/// <param name="db">The database context.</param>
+/// <param name="audit">The audit log.</param>
 public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 {
     private const char Separator = '/';
 
     public const char PathSlugSeparator = '-';
 
+    /// <summary>
+    /// Creates a new category with the specified properties. Validates the parent category, slug uniqueness, and redirect rules before creating the category.
+    /// </summary>
+    /// <param name="name">The name of the category.</param>
+    /// <param name="slug">The slug of the category.</param>
+    /// <param name="metaTitle">The meta title of the category.</param>
+    /// <param name="metaDescription">The meta description of the category.</param>
+    /// <param name="parentId">The ID of the parent category.</param>
+    /// <param name="sortOrder">The sort order of the category.</param>
+    /// <param name="isActive">Indicates whether the category is active.</param>
+    /// <param name="isMenu">Indicates whether the category is included in the menu.</param>
+    /// <param name="redirectToId">The ID of the category to redirect to.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the operation.</returns>
     public async Task<CategoryResult> CreateAsync(
         string name,
         string? slug,
@@ -64,8 +91,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryResult.Fail(CategoryError.DuplicateSlug);
         }
 
-        // Guid.Empty stands for "nothing yet": the category has no id of its own to clash with
-        // until it is created, and a brand new one cannot already be a redirect destination.
         var redirectError = await ValidateRedirectAsync(Guid.Empty, redirectToId, ct);
         if (redirectError != CategoryError.None)
         {
@@ -98,6 +123,20 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         return CategoryResult.Ok(category);
     }
 
+    /// <summary>
+    /// Updates an existing category with the specified properties. Validates the parent category, slug uniqueness, and redirect rules before updating the category.
+    /// </summary>
+    /// <param name="id">The ID of the category to update.</param>
+    /// <param name="name">The name of the category.</param>
+    /// <param name="slug">The slug of the category.</param>
+    /// <param name="metaTitle">The meta title of the category.</param>
+    /// <param name="metaDescription">The meta description of the category.</param>
+    /// <param name="sortOrder">The sort order of the category.</param>
+    /// <param name="isActive">Indicates whether the category is active.</param>
+    /// <param name="isMenu">Indicates whether the category is included in the menu.</param>
+    /// <param name="redirectToId">The ID of the category to redirect to.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the operation.</returns>
     public async Task<CategoryResult> UpdateAsync(
         Guid id,
         string name,
@@ -137,7 +176,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryResult.Fail(redirectError);
         }
 
-        // Captured before mutation so the trail records what actually changed.
+        // Creates a summary of the changes made to the category for auditing purposes.
         var summary = AuditLog.Diff(
             ("name", category.Name, name),
             ("slug", category.Slug, finalSlug),
@@ -154,8 +193,6 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         category.Slug = finalSlug;
         category.PathSlug = newPathSlug;
         category.MetaTitle = string.IsNullOrWhiteSpace(metaTitle) ? null : metaTitle;
-        // Neither field falls back to Name: a one-word meta description is worse for SEO than
-        // none at all, and search engines synthesise a better snippet.
         category.MetaDescription = metaDescription;
         category.SortOrder = sortOrder;
         category.IsActive = isActive;
@@ -180,7 +217,15 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         return CategoryResult.Ok(category);
     }
 
-    /// <summary>Re-parents a category and rewrites its whole subtree's paths and depths.</summary>
+    /// <summary>
+    /// Reparents a category to a new parent and optionally reorders it among its siblings. 
+    /// Validates the new parent category, slug uniqueness, and cycle prevention before moving the category.
+    /// </summary>
+    /// <param name="id">The ID of the category to move.</param>
+    /// <param name="newParentId">The ID of the new parent category.</param>
+    /// <param name="position">The position of the category among its siblings.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the operation.</returns>
     public async Task<CategoryResult> MoveAsync(
         Guid id,
         Guid? newParentId,
@@ -245,6 +290,8 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         category.Depth += depthDelta;
         category.UpdatedAt = DateTimeOffset.UtcNow;
         category.UpdatedById = audit.ActorId;
+
+        // Record the move action in the audit log, including the old and new path slugs for reference.
         audit.RecordCategory(category, AuditAction.Moved, $"route: {oldPathSlug} -> {newPathSlug}");
         await db.SaveChangesAsync(ct);
 
@@ -263,9 +310,12 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     }
 
     /// <summary>
-    /// Puts a category at a given position among its siblings and renumbers all of them from
-    /// zero, so the order stays gapless however many times it is rearranged.
+    /// Places a category at a specific position among its siblings. Updates the sort order of all siblings accordingly. This method does not change the parent of the category; it only reorders it among its current siblings.
     /// </summary>
+    /// <param name="category">The category to place.</param>
+    /// <param name="position">The position at which to place the category.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task PlaceAsync(Category category, int position, CancellationToken ct)
     {
         var siblings = await db.Categories
@@ -294,9 +344,11 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     }
 
     /// <summary>
-    /// Deletes a category, promoting its direct children to the deleted node's parent so no
-    /// branch is lost. Returns the ids of the promoted children.
+    /// Deletes a category and promotes its children to the deleted category's parent. Validates that the new paths and slugs of the promoted children do not conflict with existing categories.
     /// </summary>
+    /// <param name="id">The ID of the category to delete.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task<(CategoryError Error, IReadOnlyList<Guid> PromotedChildIds)> DeleteAsync(
         Guid id,
         CancellationToken ct)
@@ -350,8 +402,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             }
         }
 
-        // Recorded before removal so the snapshot still has the name and route, and committed
-        // in the same transaction - the deletion is the event most worth being able to look up.
+        // Record the deletion of the category and the promotion of its children in the audit log.
         audit.RecordCategory(category, AuditAction.Deleted,
             children.Count == 0 ? null : $"{children.Count} child(ren) promoted");
         db.Categories.Remove(category);
@@ -361,6 +412,14 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         return (CategoryError.None, children.Select(c => c.Id).ToList());
     }
 
+    /// <summary>
+    /// Adds an additional parent-child link between two categories, allowing a category to have multiple parents. 
+    /// Validates that the link does not create a cycle and that it does not duplicate an existing link.
+    /// </summary>
+    /// <param name="childId">The ID of the child category.</param>
+    /// <param name="parentId">The ID of the parent category.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task<CategoryError> AddLinkAsync(Guid childId, Guid parentId, CancellationToken ct)
     {
         if (childId == parentId)
@@ -395,12 +454,20 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryError.DuplicateLink;
         }
 
+        // Add the link and record the audit entry before saving changes, so the snapshot still has the names and routes.
         db.CategoryLinks.Add(new CategoryLink { ChildId = childId, ParentId = parentId });
         audit.RecordCategory(child, AuditAction.LinkAdded, $"also placed under '{parent.Name}'");
         await db.SaveChangesAsync(ct);
         return CategoryError.None;
     }
 
+    /// <summary>
+    /// Removes an existing link between a child category and a parent category.
+    /// </summary>
+    /// <param name="childId">The ID of the child category.</param>
+    /// <param name="parentId">The ID of the parent category.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task<CategoryError> RemoveLinkAsync(Guid childId, Guid parentId, CancellationToken ct)
     {
         var child = await db.Categories.FirstOrDefaultAsync(c => c.Id == childId, ct);
@@ -429,7 +496,12 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         return CategoryError.None;
     }
 
-    /// <summary>Ancestors of a category, root first. Read straight out of the path — no recursion.</summary>
+    /// <summary>
+    /// Gets all ancestors of a category, ordered from the root down to the immediate parent.
+    /// </summary>
+    /// <param name="category">The category for which to find ancestors.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task<IReadOnlyList<Category>> GetAncestorsAsync(Category category, CancellationToken ct)
     {
         var ids = ParsePath(category.Path).Where(i => i != category.Id).ToList();
@@ -446,17 +518,29 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         return [.. ancestors.OrderBy(c => c.Depth)];
     }
 
-    /// <summary>Every descendant of a category, via a single indexed prefix scan.</summary>
+    /// <summary>
+    /// Gets all descendants of a category, optionally including the category itself. 
+    /// This is done by checking if the descendant's path starts with the ancestor's path.
+    /// </summary>
+    /// <param name="category">The category for which to find descendants.</param>
+    /// <param name="includeSelf">Indicates whether to include the category itself in the results.</param>
+    /// <returns>A queryable collection of descendant categories.</returns>
     public IQueryable<Category> DescendantsOf(Category category, bool includeSelf) =>
         includeSelf
             ? db.Categories.Where(c => c.Path.StartsWith(category.Path))
             : db.Categories.Where(c => c.Path.StartsWith(category.Path) && c.Id != category.Id);
 
-    /// <summary>Rewrites the paths and depths of everything strictly below a moved node.</summary>
+    /// <summary>
+    /// Write the new path and depth to everything strictly below a moved node. 
+    /// This is necessary when a category is moved to a new parent, as all descendants' paths and depths must be updated to reflect the new location in the tree.
+    /// </summary>
+    /// <param name="oldPath">The old path of the category.</param>
+    /// <param name="newPath">The new path of the category.</param>
+    /// <param name="depthDelta">The change in depth.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task RewriteSubtreeAsync(string oldPath, string newPath, int depthDelta, CancellationToken ct)
     {
-        // One statement for the whole subtree — the alternative is loading and saving every
-        // descendant, which turns a deep branch into hundreds of round-trips.
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"""
              UPDATE categories
@@ -467,6 +551,15 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
              """, ct);
     }
 
+    /// <summary>
+    /// Rewrites the path slugs of everything strictly below a moved node. 
+    /// This is necessary when a category's slug changes, as all descendants' path slugs must be updated to reflect the new path.
+    /// </summary>
+    /// <param name="subtreeIdPath">The ID path of the subtree whose slugs to update.</param>
+    /// <param name="oldPathSlug">The old path slug.</param>
+    /// <param name="newPathSlug">The new path slug.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     private async Task RewriteSubtreeSlugsAsync(
         string subtreeIdPath,
         string oldPathSlug,
@@ -482,26 +575,44 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
              """, ct);
     }
 
+    /// <summary>
+    /// Checks if the candidate category is a descendant of the ancestor category by comparing their paths.
+    /// </summary>
+    /// <param name="candidate">The category to check.</param>
+    /// <param name="ancestor">The potential ancestor category.</param>
+    /// <returns>true if the candidate is a descendant of the ancestor; otherwise, false.</returns>
     private static bool IsDescendantOf(Category candidate, Category ancestor) =>
         candidate.Path.StartsWith(ancestor.Path, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Builds an ID path for a category based on its parent and its own ID. 
+    /// The path is in the format "/{parentId}/{id}/" for non-root categories, or "/{id}/" for root categories.
+    /// </summary>
+    /// <param name="parent">The parent category.</param>
+    /// <param name="id">The ID of the category.</param>
+    /// <returns>The ID path.</returns>
     private static string BuildPath(Category? parent, Guid id) =>
         parent is null ? $"{Separator}{id}{Separator}" : $"{parent.Path}{id}{Separator}";
 
+    /// <summary>
+    /// Parses an ID path into a sequence of GUIDs. 
+    /// The path is expected to be in the format "/{id1}/{id2}/{id3}/", where each segment is a GUID.
+    /// </summary>
+    /// <param name="path">The path to parse.</param>
+    /// <returns>The sequence of GUIDs.</returns>
     private static IEnumerable<Guid> ParsePath(string path) =>
         path.Split(Separator, StringSplitOptions.RemoveEmptyEntries)
             .Select(segment => Guid.TryParse(segment, out var id) ? id : Guid.Empty)
             .Where(id => id != Guid.Empty);
 
     /// <summary>
-    /// Checks a proposed redirect.
-    /// <para>
-    /// Redirects are kept to a single hop, enforced from both ends: a category may not point at
-    /// one that already forwards, and one that is already a destination may not be given a
-    /// redirect of its own. That is what makes a cycle unbuildable rather than merely detected,
-    /// and it means a consumer reads one field instead of walking a chain.
-    /// </para>
+    /// Validates the redirect rules for a category. 
+    /// Ensures that the redirect target exists, is not the same as the category itself, and does not create a redirect chain.
     /// </summary>
+    /// <param name="categoryId">The ID of the category for which to validate the redirect.</param>
+    /// <param name="redirectToId">The ID of the category to which this category redirects.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The result of the validation.</returns>
     private async Task<CategoryError> ValidateRedirectAsync(
         Guid categoryId,
         Guid? redirectToId,
@@ -536,9 +647,21 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         return isItselfADestination ? CategoryError.RedirectChain : CategoryError.None;
     }
 
+    /// <summary>
+    /// Resolves the final slug for a category. 
+    /// If a slug is provided, it normalizes it; otherwise, it generates a slug from the category name.
+    /// </summary>
+    /// <param name="slug">The slug to resolve.</param>
+    /// <param name="name">The name of the category.</param>
+    /// <returns>The resolved slug.</returns>
     private static string ResolveSlug(string? slug, string name) =>
         string.IsNullOrWhiteSpace(slug) ? Slugify(name) : NormalizeSlug(slug);
 
+    /// <summary>
+    /// Normalizes a slug by converting it to lowercase, replacing non-alphanumeric characters with hyphens, and ensuring it is not empty.
+    /// </summary>
+    /// <param name="value">The slug to normalize.</param>
+    /// <returns>The normalized slug.</returns>
     public static string NormalizeSlug(string value)
     {
         var cleaned = new string([.. value
@@ -553,8 +676,11 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             : slug[..Math.Min(slug.Length, 200)];
     }
 
-    /// <summary>Derives a segment from a name. Separators are stripped, never turned into
-    /// hyphens, because a hyphen delimits levels in the full route.</summary>
+    /// <summary>
+    /// Slugifies a string by removing non-alphanumeric characters and converting it to lowercase.
+    /// </summary>
+    /// <param name="value">The string to slugify.</param>
+    /// <returns>The slugified string.</returns>
     public static string Slugify(string value)
     {
         var slug = new string([.. value
@@ -566,7 +692,12 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             : slug[..Math.Min(slug.Length, 200)];
     }
 
-    /// <summary>Joins a parent's route with a child segment: <c>christmas</c> + <c>icelights</c>.</summary>
+    /// <summary>
+    /// Builds an path of slugs for a category based on its parent and its own slug.
+    /// </summary>
+    /// <param name="parent">The parent category.</param>
+    /// <param name="slug">The slug of the category.</param>
+    /// <returns>The built path slug.</returns>
     private static string BuildPathSlug(Category? parent, string slug) =>
         parent is null ? slug : $"{parent.PathSlug}{PathSlugSeparator}{slug}";
 }
