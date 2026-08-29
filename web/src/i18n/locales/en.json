@@ -75,6 +75,7 @@
   "categories.deleteBody": "Its children are not deleted — they are promoted to this category's parent, and their routes are rewritten to match.",
 
   "categories.newTitle": "New category",
+  "categories.newUnder": "New category under \"{name}\"",
   "categories.editTitle": "Edit {name}",
   "categories.fieldName": "Name",
   "categories.fieldSlug": "Slug",

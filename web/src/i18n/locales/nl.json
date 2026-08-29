@@ -75,6 +75,7 @@
   "categories.deleteBody": "De subcategorieën worden niet verwijderd. Ze schuiven door naar de bovenliggende categorie, en hun routes worden daarop aangepast.",
 
   "categories.newTitle": "Nieuwe categorie",
+  "categories.newUnder": "Nieuwe categorie onder \"{name}\"",
   "categories.editTitle": "{name} bewerken",
   "categories.fieldName": "Naam",
   "categories.fieldSlug": "URL naam",

@@ -19,6 +19,7 @@ import {
 import { CategoryPicker } from '@/components/category-picker';
 import { deleteCategory, moveCategory } from './actions';
 import { CategoryDetailsModal } from './category-details-modal';
+import { CategoryForm } from './category-form';
 import { useT } from '@/i18n/client';
 
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
@@ -37,6 +38,12 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
   const [viewing, setViewing] = useState<CategoryNode | null>(null);
   const [moving, setMoving] = useState<CategoryNode | null>(null);
   const [deleting, setDeleting] = useState<CategoryNode | null>(null);
+  /**
+   * The category being created, or null when the dialog is shut. `parent` is the node it will
+   * hang under, so a null *inside* this object means a new root — which is why the whole thing
+   * is nullable rather than just tracking the parent id.
+   */
+  const [creating, setCreating] = useState<{ parent: CategoryNode | null } | null>(null);
   const [newParent, setNewParent] = useState<string | null>(null);
   const movingSubtree = moving
     ? collectSubtreeIds(findNode(nodes, moving.id) ?? moving)
@@ -82,6 +89,20 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
       if (!next.delete(id)) next.add(id);
       return persist(next);
     });
+  }
+
+  /**
+   * Opens the creation dialog. A parent is expanded on the way in, so the child that is about
+   * to be added lands somewhere visible rather than inside a branch that is still folded shut.
+   */
+  function beginCreate(parent: CategoryNode | null) {
+    if (parent) {
+      setCollapsed((current) => {
+        const next = new Set(current);
+        return next.delete(parent.id) ? persist(next) : current;
+      });
+    }
+    setCreating({ parent });
   }
 
   function collapseAll() {
@@ -267,7 +288,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
           </Button>
         </Group>
 
-        <Button component={Link} href="/categories/new" leftSection={<IconPlus size={16} />}>
+        <Button onClick={() => beginCreate(null)} leftSection={<IconPlus size={16} />}>
           {t('categories.new')}
         </Button>
       </Group>
@@ -300,6 +321,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             dropTarget={dropTarget}
             onMove={(n) => { setMoving(n); setNewParent(null); }}
             onDelete={setDeleting}
+            onCreate={beginCreate}
             onView={setViewing}
             siteUrl={siteUrl}
             draggingAllowed={draggingAllowed}
@@ -331,6 +353,31 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
           <Text size="sm" c="dimmed" ta="center">{t('categories.dropAsRoot')}</Text>
         </Paper>
       )}
+
+      {/*
+        Creation happens over the tree rather than on a page of its own, so the branch you were
+        looking at is still there behind the dialog — and still there when it closes, with the
+        collapsed state and the scroll position untouched.
+
+        Mounted only while open: a fresh CategoryForm each time is what clears the fields, and
+        it is also how the preselected parent gets in, since the form seeds itself once.
+      */}
+      <Modal
+        opened={!!creating}
+        onClose={() => setCreating(null)}
+        size="lg"
+        title={creating?.parent
+          ? t('categories.newUnder', { name: creating.parent.name })
+          : t('categories.newTitle')}
+      >
+        {creating && (
+          <CategoryForm
+            options={options}
+            initial={{ parentId: creating.parent?.id ?? null }}
+            onClose={() => setCreating(null)}
+          />
+        )}
+      </Modal>
 
       <CategoryDetailsModal
         categoryId={viewing?.id ?? null}
@@ -401,6 +448,8 @@ interface BranchProps {
   dropTarget: string | null | undefined;
   onMove: (n: CategoryNode) => void;
   onDelete: (n: CategoryNode) => void;
+  /** Opens the creation dialog with this node preselected as the parent. */
+  onCreate: (n: CategoryNode) => void;
   onView: (n: CategoryNode) => void;
   siteUrl: string;
   /** Search terms, for highlighting. Empty when not searching. */
@@ -617,7 +666,11 @@ function Branch(props: BranchProps) {
           {/* draggable={false} so pressing a button never starts a drag. */}
           <Group gap={4} wrap="nowrap" draggable={false} onDragStart={(e) => e.preventDefault()}>
             <Tooltip label={t('common.addChild')}>
-              <ActionIcon component={Link} href={`/categories/new?parent=${node.id}`} variant="subtle">
+              <ActionIcon
+                variant="subtle"
+                aria-label={t('common.addChild')}
+                onClick={() => props.onCreate(node)}
+              >
                 <IconPlus size={16} />
               </ActionIcon>
             </Tooltip>
