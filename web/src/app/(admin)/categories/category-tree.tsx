@@ -552,8 +552,14 @@ function Branch(props: BranchProps) {
                 {node.name}
               </Highlight>
             </UnstyledButton>
+            {/*
+              Hidden on a phone: a full route is long enough to push the name, the badges and
+              the controls off the screen, and it is the least useful of them there. It is still
+              in the details modal, which is where you go when you actually want it.
+            */}
             <Tooltip label={liveUrl}>
               <Anchor
+                visibleFrom="sm"
                 href={liveUrl}
                 target="_blank"
                 rel="noreferrer"

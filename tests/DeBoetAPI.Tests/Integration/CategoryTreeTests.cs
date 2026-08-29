@@ -35,9 +35,9 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
         response.EnsureSuccessStatusCode();
         var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
 
-        // "Ice Lights abc123" collapses to "icelightsabc123" — separators are stripped, not
-        // turned into dashes, because the dash delimits levels in the path slug.
-        Assert.StartsWith("icelights", created.Slug);
+        // Spaces become underscores; the dash is left alone because it delimits levels in
+        // the full route, so a derived segment must never contain one.
+        Assert.StartsWith("ice_lights_", created.Slug);
         Assert.DoesNotContain(' ', created.Slug);
         Assert.DoesNotContain('-', created.Slug);
         Assert.Equal(created.Slug, created.PathSlug); // a root's route is just its own segment
@@ -192,7 +192,7 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
         // pass even if the rename had silently failed.
         Assert.Equal(expectedAfterRename, iceDetail.Breadcrumb.Select(c => c.Name).ToArray());
 
-        Assert.Equal($"{christmas.Slug}-festivelighting-{ice.Slug}", iceDetail.Category.PathSlug);
+        Assert.Equal($"{christmas.Slug}-festive_lighting-{ice.Slug}", iceDetail.Category.PathSlug);
     }
 
     [Fact]
@@ -255,14 +255,58 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
     }
 
     [Fact]
-    public async Task MultiWordName_BecomesOneUnbrokenSegment()
+    public async Task MultiWordName_JoinsItsWordsWithUnderscores()
     {
         var root = await CreateCategoryAsync("Root", slug: UniqueSlug("root"));
 
         var child = await CreateCategoryAsync("Christmas Lights", root.Id);
 
-        Assert.Equal("christmaslights", child.Slug);
-        Assert.Equal($"{root.Slug}-christmaslights", child.PathSlug);
+        Assert.Equal("christmas_lights", child.Slug);
+        Assert.Equal($"{root.Slug}-christmas_lights", child.PathSlug);
+    }
+
+    [Fact]
+    public async Task PunctuationInAName_DisappearsRatherThanSplittingAWord()
+    {
+        var root = await CreateCategoryAsync("Root", slug: UniqueSlug("root"));
+
+        var child = await CreateCategoryAsync("Christmas Light's", root.Id);
+
+        // The apostrophe goes, so "Light's" closes up into "lights" rather than "light_s".
+        Assert.Equal("christmas_lights", child.Slug);
+    }
+
+    [Fact]
+    public async Task AccentsAreFoldedSoTheRouteStaysReadableInAUrl()
+    {
+        // Left alone these travel as caf%C3%A9_d%C3%A9j%C3%A0_vu, which nobody can read or type.
+        var root = await CreateCategoryAsync("Root", slug: UniqueSlug("root"));
+
+        var child = await CreateCategoryAsync("Café Déjà Vu", root.Id);
+
+        Assert.Equal("cafe_deja_vu", child.Slug);
+    }
+
+    [Fact]
+    public async Task LettersWithNoAccentToStripAreSpelledOut()
+    {
+        // Decomposition does nothing for these, so without spelling them out they would simply
+        // disappear and "Größe" would come back as "groe".
+        var root = await CreateCategoryAsync("Root", slug: UniqueSlug("root"));
+
+        var child = await CreateCategoryAsync("Größe Blåbær", root.Id);
+
+        Assert.Equal("grosse_blabaer", child.Slug);
+    }
+
+    [Fact]
+    public async Task RunsOfSpacesAndPunctuationDoNotPileUpSeparators()
+    {
+        var root = await CreateCategoryAsync("Root", slug: UniqueSlug("root"));
+
+        var child = await CreateCategoryAsync("  Christmas   &   Lights!  ", root.Id);
+
+        Assert.Equal("christmas_lights", child.Slug);
     }
 
     [Fact]
@@ -306,19 +350,42 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
     }
 
     [Fact]
-    public async Task SuppliedSlug_HasItsSeparatorsNormalisedToHyphens()
+    public async Task SuppliedSlug_KeepsHyphensAndUnderscoresAndTidiesTheRest()
     {
-        // Unlike a slug derived from a name, a supplied one may contain hyphens: the caller is
-        // spelling a route deliberately. Everything else becomes one, collapsed and trimmed.
+        // A supplied slug may contain both: hyphens because the caller is spelling a route
+        // deliberately, underscores because that is what a derived slug is made of. Anything
+        // else becomes a hyphen.
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var response = await Admin.PostAsJsonAsync("/api/v1/categories",
             new { name = "Anything", slug = $"ice lights_{suffix}" });
         response.EnsureSuccessStatusCode();
         var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
 
-        Assert.Equal($"ice-lights-{suffix}", created.Slug);
-        Assert.DoesNotContain('_', created.Slug);
+        Assert.Equal($"ice-lights_{suffix}", created.Slug);
         Assert.DoesNotContain(' ', created.Slug);
+    }
+
+    [Fact]
+    public async Task SavingACategoryAgain_LeavesItsDerivedSlugAlone()
+    {
+        // The panel submits the stored slug on every save. If the hand-written path rewrote
+        // underscores, editing a name would silently move the category's route each time.
+        var root = await CreateCategoryAsync("Root", slug: UniqueSlug("root"));
+        var child = await CreateCategoryAsync("Christmas Lights", root.Id);
+        Assert.Equal("christmas_lights", child.Slug);
+
+        var response = await Admin.PutAsJsonAsync($"/api/v1/categories/{child.Id}", new
+        {
+            name = "Christmas Lights Renamed",
+            slug = child.Slug,
+            sortOrder = 0,
+            isActive = true,
+            isMenu = true,
+        });
+        response.EnsureSuccessStatusCode();
+
+        var updated = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
+        Assert.Equal("christmas_lights", updated.Slug);
     }
 
     [Fact]

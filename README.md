@@ -99,6 +99,32 @@ and an initial password and hands it to the new user directly.
 Any password an administrator sets at creation or at reset — is temporary. 
 The user would have to set up a new password on the initial login
 
+## How a slug is made
+
+The slug is a category's own segment of the route; the full route joins the segments with a
+hyphen, so a **derived** slug never contains one.
+
+Derived from the name when the field is left blank:
+
+| Name | Slug |
+|---|---|
+| `Christmas Light` | `christmas_light` |
+| `Christmas Light's` | `christmas_lights` |
+| `Kerst & Verlichting!` | `kerst_verlichting` |
+| `Café Déjà Vu` | `cafe_deja_vu` |
+| `Größe Blåbær` | `grosse_blabaer` |
+
+Spaces become underscores; everything else that is not a letter or digit disappears, so an
+apostrophe closes a word up rather than splitting it. Accents are folded to plain ASCII,
+because a slug ends up in a URL and `caf%C3%A9_d%C3%A9j%C3%A0_vu` is unreadable, untypeable and
+unshareable. Letters with nothing to strip — ß, ø, æ — are spelled out first, since they would
+otherwise vanish entirely.
+
+Typed by hand, a slug keeps hyphens **and** underscores and everything else becomes a hyphen —
+you are spelling a route deliberately. The underscore has to survive here too: the panel
+submits the stored slug on every save, so folding it back to a hyphen would silently move a
+category's route each time somebody edited its name.
+
 ## Category redirects
 
 A category can forward to another one. It is for a node that exists to organise the tree but

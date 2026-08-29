@@ -10,3 +10,12 @@ appsettings.*.local.json
 TestResults/
 logs/
 *.log
+
+# Private keys. A .ssh directory next to the source is easy to create while setting up a
+# deploy user and catastrophic to commit, so it is ignored outright rather than relied on
+# not to be staged.
+.ssh/
+*.pem
+*.ppk
+id_rsa
+id_ed25519

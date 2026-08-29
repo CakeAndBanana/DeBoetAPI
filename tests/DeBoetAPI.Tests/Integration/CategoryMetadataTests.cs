@@ -74,7 +74,7 @@ public class CategoryMetadataTests(PostgresFixture postgres) : CategoryTestBase(
         response.EnsureSuccessStatusCode();
         var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
 
-        Assert.StartsWith("christmaslights", created.Slug);
+        Assert.StartsWith("christmas_lights_", created.Slug);
         Assert.DoesNotContain('-', created.Slug);
     }
 

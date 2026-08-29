@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using DeBoetAPI.Common;
 using DeBoetAPI.Data;
 using DeBoetAPI.Data.Entities;
@@ -46,6 +48,13 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     private const char Separator = '/';
 
     public const char PathSlugSeparator = '-';
+
+    /// <summary>
+    /// Joins the words of a derived slug: "Christmas Light" becomes <c>christmas_light</c>.
+    /// Not a hyphen, because that separates levels in the full route.
+    /// </summary>
+    public const char WordSeparator = '_';
+
 
     /// <summary>
     /// Creates a new category with the specified properties. Validates the parent category, slug uniqueness, and redirect rules before creating the category.
@@ -658,34 +667,113 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         string.IsNullOrWhiteSpace(slug) ? Slugify(name) : NormalizeSlug(slug);
 
     /// <summary>
-    /// Normalizes a slug by converting it to lowercase, replacing non-alphanumeric characters with hyphens, and ensuring it is not empty.
+    /// Tidies a slug someone typed by hand.
+    /// <para>
+    /// Letters, digits, hyphens and underscores survive; anything else becomes a hyphen. The
+    /// underscore has to survive: a derived slug is full of them, and the panel submits the
+    /// stored slug on every save — rewriting them to hyphens here would silently change a
+    /// category's route each time somebody edited its name.
+    /// </para>
     /// </summary>
-    /// <param name="value">The slug to normalize.</param>
-    /// <returns>The normalized slug.</returns>
     public static string NormalizeSlug(string value)
     {
-        var cleaned = new string([.. value
-            .ToLowerInvariant()
-            .Select(c => char.IsLetterOrDigit(c) ? c : PathSlugSeparator)]);
+        var mapped = new string([.. ToAscii(value)
+            .Select(c => IsPlain(c) || c == WordSeparator ? c : PathSlugSeparator)]);
 
-        var segments = cleaned.Split(PathSlugSeparator, StringSplitOptions.RemoveEmptyEntries);
-        var slug = string.Join(PathSlugSeparator, segments);
-
-        return slug.Length == 0
-            ? Guid.CreateVersion7().ToString("N")[..12]
-            : slug[..Math.Min(slug.Length, 200)];
+        return Tidy(mapped);
     }
 
     /// <summary>
-    /// Slugifies a string by removing non-alphanumeric characters and converting it to lowercase.
+    /// Derives a slug from a name.
+    /// <para>
+    /// Spaces become underscores and everything else that is not a letter or digit is dropped,
+    /// so "Christmas Light" gives <c>christmas_light</c> and "Christmas Light's" gives
+    /// <c>christmas_lights</c> — the apostrophe disappears rather than splitting the word.
+    /// </para>
+    /// The hyphen is left well alone: it delimits levels in the full route, so a derived
+    /// segment must never contain one.
     /// </summary>
-    /// <param name="value">The string to slugify.</param>
-    /// <returns>The slugified string.</returns>
     public static string Slugify(string value)
     {
-        var slug = new string([.. value
+        // Filter first, then map: everything that is not a letter, digit or space simply is
+        // not there, which is what closes "Light's" up into "lights".
+        var mapped = new string([.. ToAscii(value)
+            .Where(c => IsPlain(c) || char.IsWhiteSpace(c))
+            .Select(c => char.IsWhiteSpace(c) ? WordSeparator : c)]);
+
+        return Tidy(mapped);
+    }
+
+    /// <summary>A character a URL can carry without being escaped.</summary>
+    private static bool IsPlain(char c) => c is (>= 'a' and <= 'z') or (>= '0' and <= '9');
+
+    /// <summary>
+    /// Lowercases and folds a name down to plain ASCII.
+    /// <para>
+    /// Accents are dropped rather than kept, because a slug ends up in a URL: left alone,
+    /// "Café Déjà Vu" travels as <c>caf%C3%A9_d%C3%A9j%C3%A0_vu</c>, which nobody can read,
+    /// type or share. The letters that have no accent to strip — ß, ø, æ — are spelled out
+    /// first, since decomposition leaves them untouched and they would otherwise vanish.
+    /// </para>
+    /// </summary>
+    private static string ToAscii(string value)
+    {
+        var spelled = value
             .ToLowerInvariant()
-            .Where(char.IsLetterOrDigit)]);
+            .Replace("ß", "ss")
+            .Replace("æ", "ae")
+            .Replace("œ", "oe")
+            .Replace("ø", "o")
+            .Replace("đ", "d")
+            .Replace("ð", "d")
+            .Replace("þ", "th")
+            .Replace("ł", "l");
+
+        // FormD splits a letter from its accent; the accent is a non-spacing mark, so dropping
+        // those marks leaves the bare letter behind.
+        var decomposed = spelled.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(decomposed.Length);
+
+        foreach (var c in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(c);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// Collapses runs of separators, trims them from both ends, caps the length, and falls back
+    /// to something unique when nothing usable is left — a name of only punctuation still has
+    /// to produce an addressable category.
+    /// </summary>
+    private static string Tidy(string mapped)
+    {
+        var builder = new StringBuilder(mapped.Length);
+
+        foreach (var c in mapped)
+        {
+            var isSeparator = c == WordSeparator || c == PathSlugSeparator;
+
+            // Skips a separator at the very start, and any repeat of the one before it.
+            if (isSeparator && (builder.Length == 0 || builder[^1] == c))
+            {
+                continue;
+            }
+
+            builder.Append(c);
+        }
+
+        while (builder.Length > 0
+            && (builder[^1] == WordSeparator || builder[^1] == PathSlugSeparator))
+        {
+            builder.Length--;
+        }
+
+        var slug = builder.ToString();
 
         return slug.Length == 0
             ? Guid.CreateVersion7().ToString("N")[..12]
