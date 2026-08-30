@@ -31,7 +31,7 @@
   "nav.menu": "Menu",
   "nav.signedIn": "signed in",
 
-  "login.heading": "DeBoet Admin",
+  "login.heading": "Login",
   "login.username": "Username or email",
   "login.password": "Password",
   "login.submit": "Sign in",
