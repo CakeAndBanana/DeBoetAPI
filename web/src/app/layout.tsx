@@ -2,12 +2,10 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 
 import type { Metadata } from 'next';
-import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core';
+import { ColorSchemeScript, MantineProvider, mantineHtmlProps, createTheme, MantineColorsTuple } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { getLocale } from '@/i18n/server';
 import { LocaleProvider } from '@/i18n/client';
-
-import { MantineProvider, createTheme, MantineColorsTuple } from '@mantine/core';
 
 const myColor: MantineColorsTuple = [
   '#E3F9E5',
