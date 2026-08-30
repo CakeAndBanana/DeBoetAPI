@@ -3,9 +3,9 @@
 import { useDisclosure } from '@mantine/hooks';
 import {
   AppShell, AppShellHeader, AppShellMain, Burger, Button, Divider, Drawer, Group, ScrollArea,
-  Stack, Text,
+  Stack, Text, ThemeIcon,
 } from '@mantine/core';
-import { IconLogout } from '@tabler/icons-react';
+import { IconLeaf, IconLogout } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
 import { AdminNav } from './admin-nav';
 import { AccountMenu } from './account-menu';
@@ -34,12 +34,32 @@ export function AdminShell({
   const [opened, { toggle, close }] = useDisclosure(false);
 
   return (
-    <AppShell header={{ height: 56 }} padding="md">
-      <AppShellHeader>
+    <AppShell header={{ height: 64 }} padding="md">
+      <AppShellHeader
+        style={{
+          background: 'linear-gradient(105deg, var(--mantine-color-myColor-9), var(--mantine-color-myColor-6))',
+          borderBottom: '1px solid var(--mantine-color-myColor-4)',
+          boxShadow: '0 4px 14px rgba(5, 64, 10, 0.16)',
+        }}
+      >
         <Group h="100%" px="md" justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap">
-            <Burger opened={opened} onClick={toggle} size="sm" aria-label={t('nav.menu')} />
-            <Text fw={600} truncate>{t('app.title')}</Text>
+            <Burger opened={opened} onClick={toggle} size="sm" color="white" aria-label={t('nav.menu')} />
+            <ThemeIcon
+              variant="white"
+              color="myColor"
+              size={36}
+              radius="md"
+              aria-hidden="true"
+              visibleFrom="xs"
+            >
+              <IconLeaf size={21} stroke={2.2} />
+            </ThemeIcon>
+            <Stack gap={0} visibleFrom="xs">
+              <Text fw={700} c="white" lh={1.15} truncate>{t('app.title')}</Text>
+              <Text size="xs" c="myColor.1" fw={500}>{t('app.subtitle')}</Text>
+            </Stack>
+            <Text fw={700} c="white" hiddenFrom="xs" truncate>{t('app.title')}</Text>
           </Group>
 
           {/* Stays in the header: burying a language switcher two taps deep is worse than the
