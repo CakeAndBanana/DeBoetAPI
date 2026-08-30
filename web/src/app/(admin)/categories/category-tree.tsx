@@ -592,10 +592,13 @@ function Branch(props: BranchProps) {
           cursor: 'default',
           // Teal, not blue: blue now means "off menu", and a drop target has to stay
           // legible against a tree full of them mid-drag.
-          borderColor: isHovered && !insertAt ? 'var(--mantine-color-teal-5)' : stateColour,
+          borderWidth: 4,
+          borderColor: isHovered && !insertAt
+            ? 'var(--mantine-color-teal-5)'
+            : stateColour ?? '#e7e7e7',
           background: isHovered && !insertAt ? 'var(--mantine-color-teal-light)' : undefined,
-          borderTop: insertAt === 'before' ? '3px solid var(--mantine-color-teal-6)' : undefined,
-          borderBottom: insertAt === 'after' ? '3px solid var(--mantine-color-teal-6)' : undefined,
+          borderTop: insertAt === 'before' ? '4px solid var(--mantine-color-teal-6)' : undefined,
+          borderBottom: insertAt === 'after' ? '4px solid var(--mantine-color-teal-6)' : undefined,
         }}
       >
         <Group justify="space-between" wrap="nowrap" gap="md">
