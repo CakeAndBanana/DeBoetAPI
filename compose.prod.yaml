@@ -43,6 +43,9 @@ services:
       Proxy__TrustForwardedHeaders: "true"
       Admin__Password: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
       OpenApi__Enabled: ${OPENAPI_ENABLED:-false}
+      # Same variable the panel reads, so the URLs in an exported spreadsheet match the links
+      # in the tree rather than drifting from them.
+      Site__Url: ${SITE_URL:-https://www.deboet.nl}
     ports:
       - "127.0.0.1:8080:8080"
     volumes:

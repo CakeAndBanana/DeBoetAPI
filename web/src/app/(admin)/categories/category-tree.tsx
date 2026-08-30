@@ -9,7 +9,8 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconArrowDown, IconArrowsMove, IconArrowUp, IconChevronDown, IconChevronRight,
-  IconGripVertical, IconHistory, IconPencil, IconPlus, IconSearch, IconTrash, IconX,
+  IconFileSpreadsheet, IconGripVertical, IconHistory, IconPencil, IconPlus, IconSearch,
+  IconTrash, IconX,
 } from '@tabler/icons-react';
 import type { CategoryNode, CategoryOption } from '@/lib/categories';
 import {
@@ -17,6 +18,7 @@ import {
   filterTree, findNode, indexOf, placementFor, searchTerms, stepFor, type DropMode,
 } from '@/lib/tree-utils';
 import { CategoryPicker } from '@/components/category-picker';
+import { fileNameFrom } from '@/lib/download';
 import { deleteCategory, moveCategory } from './actions';
 import { CategoryDetailsModal } from './category-details-modal';
 import { CategoryForm } from './category-form';
@@ -44,6 +46,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
    * is nullable rather than just tracking the parent id.
    */
   const [creating, setCreating] = useState<{ parent: CategoryNode | null } | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [newParent, setNewParent] = useState<string | null>(null);
   const movingSubtree = moving
     ? collectSubtreeIds(findNode(nodes, moving.id) ?? moving)
@@ -103,6 +106,46 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
       });
     }
     setCreating({ parent });
+  }
+
+  /**
+   * Downloads the whole tree as a spreadsheet.
+   *
+   * Fetched into a blob rather than done with a plain link, because the API has to walk every
+   * category and render a workbook before a single byte comes back. A link would leave the page
+   * sitting there with no sign anything was happening, and would replace the tree with a bare
+   * browser error page if it failed.
+   */
+  async function exportTree() {
+    setExporting(true);
+
+    try {
+      const response = await fetch('/api/categories/export');
+
+      if (!response.ok) {
+        notifications.show({
+          color: 'red',
+          title: t('common.refused'),
+          message: (await response.text()) || t('categories.exportFailed'),
+        });
+        return;
+      }
+
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileNameFrom(response.headers.get('content-disposition'), 'categories.xlsx');
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      notifications.show({
+        color: 'red',
+        title: t('common.refused'),
+        message: t('categories.exportFailed'),
+      });
+    } finally {
+      setExporting(false);
+    }
   }
 
   function collapseAll() {
@@ -288,9 +331,20 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
           </Button>
         </Group>
 
-        <Button onClick={() => beginCreate(null)} leftSection={<IconPlus size={16} />}>
-          {t('categories.new')}
-        </Button>
+        <Group gap="xs" wrap="nowrap">
+          <Button
+            variant="default"
+            onClick={exportTree}
+            loading={exporting}
+            leftSection={<IconFileSpreadsheet size={16} />}
+          >
+            {exporting ? t('categories.exporting') : t('categories.export')}
+          </Button>
+
+          <Button onClick={() => beginCreate(null)} leftSection={<IconPlus size={16} />}>
+            {t('categories.new')}
+          </Button>
+        </Group>
       </Group>
 
       {searching && (

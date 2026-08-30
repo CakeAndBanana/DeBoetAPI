@@ -54,6 +54,7 @@ builder.Services.AddIdentityCore<AppUser>(options =>
 
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<CategoryTreeService>();
+builder.Services.AddScoped<CategoryExportService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<AuditLog>();
@@ -118,6 +119,13 @@ builder.Services.AddRateLimiter(options =>
     options.AddFixedWindowLimiter(RateLimitPolicies.Auth, limiter =>
     {
         limiter.PermitLimit = builder.Configuration.GetValue("RateLimit:AuthPermitPerMinute", 10);
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter(RateLimitPolicies.Export, limiter =>
+    {
+        limiter.PermitLimit = builder.Configuration.GetValue("RateLimit:ExportPermitPerMinute", 6);
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
     });

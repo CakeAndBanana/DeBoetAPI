@@ -42,7 +42,33 @@ public static class CategoryEndpoints
         edits.MapPost("/{id:guid}/links", AddLinkAsync).WithName("AddCategoryLink");
         edits.MapDelete("/{id:guid}/links/{parentId:guid}", RemoveLinkAsync).WithName("RemoveCategoryLink");
 
+        var exports = app.MapGroup("/api/v1/categories")
+            .WithTags("Categories")
+            .RequireAuthorization(AuthPolicies.Editor);
+
+        exports.MapGet("/export", ExportAsync)
+            .WithName("ExportCategories")
+            .RequireRateLimiting(RateLimitPolicies.Export)
+            .ExcludeFromDescription();
+
         return app;
+    }
+
+    /// <summary>
+    /// Renders the whole tree as a workbook: one sheet per root category, rows folded into
+    /// Excel's outline.
+    /// </summary>
+    /// <param name="export">The workbook builder.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>An .xlsx file, as a download.</returns>
+    private static async Task<IResult> ExportAsync(CategoryExportService export, CancellationToken ct)
+    {
+        var workbook = await export.BuildAsync(ct);
+
+        return Results.File(
+            workbook,
+            CategoryExportService.ContentType,
+            CategoryExportService.FileName(DateTimeOffset.UtcNow));
     }
 
 
