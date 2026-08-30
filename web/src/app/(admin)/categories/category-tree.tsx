@@ -27,17 +27,55 @@ import { useT } from '@/i18n/client';
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
 
 /**
- * A wash of the brand green at the trailing end of a row.
+ * How a row's publishing state is coloured: the border, and the far end of the background wash.
+ *
+ * The two are defined together because the wash is meant to read as the same signal as the
+ * border, only quieter — kept apart, they are exactly the kind of thing that ends up disagreeing
+ * after someone adjusts one of them. A `border` of undefined leaves the card its ordinary
+ * outline, so an unremarkable category is marked by its wash alone.
+ *
+ * The wash shades are picked to sit at the same distance from white rather than at the same
+ * index in their palettes, which is not the same thing: Mantine's blue and violet reach full
+ * strength faster than the greens and reds do.
+ */
+const ROW_STATES = {
+  live: { border: undefined, wash: 'var(--mantine-color-myColor-0)' },
+  offMenu: { border: 'var(--mantine-color-blue-5)', wash: 'var(--mantine-color-blue-0)' },
+  inactive: { border: 'var(--mantine-color-red-4)', wash: 'var(--mantine-color-red-1)' },
+  // Violet is the one hue with no index at the right strength: shade 1 reads noticeably heavier
+  // than the other three and shade 0 all but disappears, so it is mixed to land between them.
+  neither: {
+    border: 'var(--mantine-color-violet-5)',
+    wash: 'color-mix(in srgb, var(--mantine-color-violet-1) 72%, var(--mantine-color-body))',
+  },
+} as const;
+
+/**
+ * The two publishing flags. Both off is its own colour rather than one of them winning, because
+ * "not live and not navigable" is a different situation from either alone. The badges on the row
+ * say the same thing in words, so nothing here is colour-only.
+ */
+function rowState(node: CategoryNode) {
+  if (!node.isActive && !node.isMenu) return ROW_STATES.neither;
+  if (!node.isActive) return ROW_STATES.inactive;
+  if (!node.isMenu) return ROW_STATES.offMenu;
+  return ROW_STATES.live;
+}
+
+/**
+ * A wash of the row's own colour at its trailing end.
  *
  * Held flat for most of the width so the name, the route and the badges all sit on plain white,
- * then eased in over the last third. Faint on purpose: the badges are the only colour on a row
- * that carries meaning, and a background strong enough to notice is strong enough to argue with
+ * then eased in over the last third. Faint on purpose: the badges carry the only colour on a row
+ * that has to be read, and a background strong enough to notice is strong enough to argue with
  * them.
  */
-const ROW_TINT = 'linear-gradient(90deg,'
-  + ' var(--mantine-color-body) 0%,'
-  + ' var(--mantine-color-body) 62%,'
-  + ' var(--mantine-color-myColor-0) 100%)';
+function rowTint(wash: string) {
+  return 'linear-gradient(90deg,'
+    + ' var(--mantine-color-body) 0%,'
+    + ' var(--mantine-color-body) 62%,'
+    + ` ${wash} 100%)`;
+}
 
 /** Stands in for the collapsed set while searching: nothing is collapsed. */
 const EXPANDED: Set<string> = new Set();
@@ -581,14 +619,7 @@ function Branch(props: BranchProps) {
   // drawn on the edge it would land against.
   const insertAt = isHovered && dropMode !== 'inside' ? dropMode : null;
 
-  // The two publishing flags, read off the border. Both off is its own colour rather than
-  // one winning, because "not live and not navigable" is a different situation from either
-  // alone. The badges below carry the same information in words, so nothing is colour-only.
-  const stateColour =
-    !node.isActive && !node.isMenu ? 'var(--mantine-color-violet-5)'
-      : !node.isActive ? 'var(--mantine-color-red-4)'
-        : !node.isMenu ? 'var(--mantine-color-blue-5)'
-          : undefined;
+  const state = rowState(node);
 
   return (
     <>
@@ -614,10 +645,12 @@ function Branch(props: BranchProps) {
           cursor: 'default',
           // Teal, not blue: blue now means "off menu", and a drop target has to stay
           // legible against a tree full of them mid-drag.
-          borderColor: isHovered && !insertAt ? 'var(--mantine-color-teal-5)' : stateColour,
+          borderColor: isHovered && !insertAt ? 'var(--mantine-color-teal-5)' : state.border,
           // The drop highlight wins outright: mid-drag, knowing where the card will land matters
-          // more than the decoration.
-          background: isHovered && !insertAt ? 'var(--mantine-color-teal-light)' : ROW_TINT,
+          // more than what the category's state is.
+          background: isHovered && !insertAt
+            ? 'var(--mantine-color-teal-light)'
+            : rowTint(state.wash),
           borderTop: insertAt === 'before' ? '3px solid var(--mantine-color-teal-6)' : undefined,
           borderBottom: insertAt === 'after' ? '3px solid var(--mantine-color-teal-6)' : undefined,
         }}
