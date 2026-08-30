@@ -10,7 +10,7 @@ import { notifications } from '@mantine/notifications';
 import {
   IconArrowDown, IconArrowsMove, IconArrowUp, IconChevronDown, IconChevronRight,
   IconFileSpreadsheet, IconGripVertical, IconHistory, IconPencil, IconPlus, IconSearch,
-  IconTrash, IconX,
+  IconTrash, IconUpload, IconX,
 } from '@tabler/icons-react';
 import type { CategoryNode, CategoryOption } from '@/lib/categories';
 import {
@@ -339,6 +339,15 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             leftSection={<IconFileSpreadsheet size={16} />}
           >
             {exporting ? t('categories.exporting') : t('categories.export')}
+          </Button>
+
+          <Button
+            component={Link}
+            href="/categories/import"
+            variant="default"
+            leftSection={<IconUpload size={16} />}
+          >
+            {t('categories.import')}
           </Button>
 
           <Button onClick={() => beginCreate(null)} leftSection={<IconPlus size={16} />}>

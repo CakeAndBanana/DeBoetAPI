@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using ClosedXML.Excel;
 using DeBoetAPI.Features.Categories;
+using Col = DeBoetAPI.Features.Categories.CategoryExportService;
 
 namespace DeBoetAPI.Tests.Integration;
 
@@ -126,7 +127,7 @@ public class CategoryExportTests(PostgresFixture postgres) : CategoryTestBase(po
         Assert.EndsWith($"!A{realRow}", hyperlink.InternalAddress, StringComparison.Ordinal);
 
         // And the branch it really lives in says so from its own side.
-        Assert.Contains(borrowName, homeSheet.Cell(realRow, AlsoUnderColumn).GetString(), StringComparison.Ordinal);
+        Assert.Contains(borrowName, homeSheet.Cell(realRow, Col.ColAlsoUnder).GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -179,21 +180,24 @@ public class CategoryExportTests(PostgresFixture postgres) : CategoryTestBase(po
         var row = RowOf(sheet, "Hidden Child");
         Assert.True(row > 0);
 
-        Assert.Equal(child.Slug, sheet.Cell(row, 3).GetString());
-        Assert.Equal(child.PathSlug, sheet.Cell(row, 4).GetString());
-        Assert.EndsWith($"/{child.PathSlug}", sheet.Cell(row, 5).GetString(), StringComparison.Ordinal);
-        Assert.Equal("No", sheet.Cell(row, 6).GetString());
-        Assert.Equal("No", sheet.Cell(row, 7).GetString());
-        Assert.Equal(3, sheet.Cell(row, 8).GetDouble());
-        Assert.Equal("Hidden meta title", sheet.Cell(row, 12).GetString());
-        Assert.Equal("Hidden meta description", sheet.Cell(row, 13).GetString());
-        Assert.Equal(child.Id.ToString(), sheet.Cell(row, 18).GetString());
+        Assert.Equal(child.Slug, sheet.Cell(row, Col.ColSlug).GetString());
+        Assert.Equal(child.PathSlug, sheet.Cell(row, Col.ColRoute).GetString());
+        Assert.EndsWith($"/{child.PathSlug}", sheet.Cell(row, Col.ColUrl).GetString(), StringComparison.Ordinal);
+        Assert.Equal("No", sheet.Cell(row, Col.ColActive).GetString());
+        Assert.Equal("No", sheet.Cell(row, Col.ColMenu).GetString());
+        Assert.Equal(3, sheet.Cell(row, Col.ColSort).GetDouble());
+        Assert.Equal("Hidden meta title", sheet.Cell(row, Col.ColMetaTitle).GetString());
+        Assert.Equal("Hidden meta description", sheet.Cell(row, Col.ColMetaDescription).GetString());
+        Assert.Equal(child.Id.ToString(), sheet.Cell(row, Col.ColId).GetString());
+
+        // The one cell that carries structure back on an import.
+        Assert.Equal(root.PathSlug, sheet.Cell(row, Col.ColParent).GetString());
 
         // A real date cell, not text, so the column sorts.
-        Assert.Equal(XLDataType.DateTime, sheet.Cell(row, 14).DataType);
+        Assert.Equal(XLDataType.DateTime, sheet.Cell(row, Col.ColCreated).DataType);
 
         // Resolved from Identity, which the panel cannot do for an editor.
-        Assert.Equal("Administrator", sheet.Cell(row, 15).GetString());
+        Assert.Equal("Administrator", sheet.Cell(row, Col.ColCreatedBy).GetString());
     }
 
     [Fact]
@@ -222,9 +226,6 @@ public class CategoryExportTests(PostgresFixture postgres) : CategoryTestBase(po
         Assert.Contains(truncated, names, StringComparer.Ordinal);
         Assert.Contains(names, n => n.StartsWith(truncated[..25], StringComparison.Ordinal) && n.EndsWith("(2)", StringComparison.Ordinal));
     }
-
-    /// <summary>Where the secondary parents are listed, one-based as Excel counts.</summary>
-    private const int AlsoUnderColumn = 11;
 
     private static readonly char[] IllegalSheetCharacters = [':', '\\', '/', '?', '*', '[', ']'];
 

@@ -51,7 +51,73 @@ public static class CategoryEndpoints
             .RequireRateLimiting(RateLimitPolicies.Export)
             .ExcludeFromDescription();
 
+        // DisableAntiforgery because these take a file: ASP.NET demands an antiforgery token for
+        // form binding, which a bearer-authenticated API call neither carries nor needs.
+        exports.MapPost("/import/preview", PreviewImportAsync)
+            .WithName("PreviewCategoryImport")
+            .RequireRateLimiting(RateLimitPolicies.Import)
+            .DisableAntiforgery()
+            .ExcludeFromDescription();
+
+        exports.MapPost("/import", ImportAsync)
+            .WithName("ImportCategories")
+            .RequireRateLimiting(RateLimitPolicies.Import)
+            .DisableAntiforgery()
+            .ExcludeFromDescription();
+
         return app;
+    }
+
+    /// <summary>The largest workbook we will read. Far above a full tree, far below a zip bomb.</summary>
+    private const long MaxImportBytes = 10 * 1024 * 1024;
+
+    /// <summary>
+    /// Says what an edited workbook would do to the tree, and writes nothing — so it is safe to
+    /// run against anything anyone hands you.
+    /// </summary>
+    private static async Task<IResult> PreviewImportAsync(
+        IFormFile? file,
+        CategoryImportService import,
+        CancellationToken ct) =>
+        await RunImportAsync(file, ct, import.PreviewAsync);
+
+    /// <summary>Applies an edited workbook, all or nothing.</summary>
+    private static async Task<IResult> ImportAsync(
+        IFormFile? file,
+        CategoryImportService import,
+        CancellationToken ct) =>
+        await RunImportAsync(file, ct, import.ApplyAsync);
+
+    private static async Task<IResult> RunImportAsync(
+        IFormFile? file,
+        CancellationToken ct,
+        Func<Stream, CancellationToken, Task<ImportOutcome>> run)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return TypedResults.Problem("No file was uploaded.", statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (file.Length > MaxImportBytes)
+        {
+            return TypedResults.Problem(
+                $"That file is larger than {MaxImportBytes / (1024 * 1024)} MB.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        // Copied into memory first: ClosedXML seeks around a workbook, and an uploaded form file
+        // is not reliably seekable.
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
+        buffer.Position = 0;
+
+        var outcome = await run(buffer, ct);
+
+        // A problem means the file itself was unusable, or the write was rolled back. Either way
+        // nothing changed, and the caller needs telling rather than shown a plan.
+        return outcome.Problem is not null
+            ? TypedResults.Problem(outcome.Problem, statusCode: StatusCodes.Status400BadRequest)
+            : TypedResults.Ok(ImportResponse.From(outcome));
     }
 
     /// <summary>

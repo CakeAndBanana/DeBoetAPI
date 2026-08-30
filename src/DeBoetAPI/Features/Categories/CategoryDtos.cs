@@ -180,3 +180,55 @@ public sealed record SetItemCategoriesRequest
 
     public Guid? PrimaryCategoryId { get; init; }
 }
+
+/// <summary>One row of an import, as the panel shows it.</summary>
+/// <param name="Sheet">The worksheet it came from, so it can be found again.</param>
+/// <param name="Row">The row number in that sheet.</param>
+/// <param name="State">Changed, Unchanged, Stale, Refused or Blocked.</param>
+/// <param name="Changes">The fields that differ, worded as the change history words them.</param>
+/// <param name="Reason">Why it will not be applied, when it will not be.</param>
+public sealed record ImportRowResponse(
+    string Sheet,
+    int Row,
+    Guid Id,
+    string Name,
+    string State,
+    IReadOnlyList<string> Changes,
+    string? Reason);
+
+/// <summary>
+/// What a preview or an applied import reports back.
+///
+/// Only the rows that need a decision are listed. A workbook is mostly rows nobody touched, and
+/// sending several hundred of them back so the panel can count them and throw them away helps no
+/// one — the count is the only part of "unchanged" worth knowing.
+/// </summary>
+public sealed record ImportResponse(
+    int Changed,
+    int Unchanged,
+    int Stale,
+    int Refused,
+    int Blocked,
+    int Applied,
+    IReadOnlyList<ImportRowResponse> Rows)
+{
+    public static ImportResponse From(ImportOutcome outcome)
+    {
+        var plan = outcome.Plan;
+
+        if (plan is null)
+        {
+            return new ImportResponse(0, 0, 0, 0, 0, 0, []);
+        }
+
+        var rows = plan.Rows
+            .Where(r => r.State is not (ImportRowState.Unchanged or ImportRowState.Ignored))
+            .Select(r => new ImportRowResponse(
+                r.Sheet, r.Number, r.Id, r.Name, r.State.ToString(), r.Changes, r.Reason))
+            .ToList();
+
+        return new ImportResponse(
+            plan.Changed, plan.Unchanged, plan.Stale, plan.Refused, plan.Blocked,
+            outcome.Applied, rows);
+    }
+}

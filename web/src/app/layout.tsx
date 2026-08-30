@@ -2,7 +2,7 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 
 import type { Metadata } from 'next';
-import { ColorSchemeScript, MantineProvider, mantineHtmlProps, createTheme, MantineColorsTuple } from '@mantine/core';
+import { ColorSchemeScript, MantineProvider, mantineHtmlProps, createTheme, MantineColorsTuple   } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { getLocale } from '@/i18n/server';
 import { LocaleProvider } from '@/i18n/client';
@@ -29,8 +29,8 @@ const theme = createTheme({
 
 
 export const metadata: Metadata = {
-  title: 'DeBoet Admin',
-  description: 'Manage the DeBoetAPI category tree and review the change history.',
+  title: 'DeBoet Tools',
+  description: 'Manage the category tree!',
   robots: { index: false, follow: false },
 };
 

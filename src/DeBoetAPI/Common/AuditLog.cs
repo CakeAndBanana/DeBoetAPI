@@ -8,6 +8,14 @@ namespace DeBoetAPI.Common;
 /// </summary>
 public sealed class AuditLog(AppDbContext db, CurrentUser currentUser)
 {
+    /// <summary>
+    /// Set for the duration of a bulk operation, and appended to every summary it writes. A
+    /// spreadsheet import produces ordinary per-category entries — which is what makes them show
+    /// up in the history like any other edit — and this is what tells a reader they arrived forty
+    /// at a time rather than by hand.
+    /// </summary>
+    public string? Context { get; set; }
+
     public void Record(
         AuditedEntityType entityType,
         Guid entityId,
@@ -25,7 +33,7 @@ public sealed class AuditLog(AppDbContext db, CurrentUser currentUser)
             Action = action,
             ChangedById = currentUser.Id,
             ChangedByName = currentUser.Name,
-            Summary = summary,
+            Summary = Context is null ? summary : $"{summary} ({Context})".TrimStart(),
         });
     }
 

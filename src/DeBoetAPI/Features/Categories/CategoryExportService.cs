@@ -31,30 +31,49 @@ public sealed class CategoryExportService(AppDbContext db, IConfiguration config
     private static readonly char[] IllegalSheetNameChars = [':', '\\', '/', '?', '*', '[', ']'];
 
     // Column numbers, so the writer reads as prose instead of as a row of magic integers.
-    private const int ColName = 1;
-    private const int ColLevel = 2;
-    private const int ColSlug = 3;
-    private const int ColRoute = 4;
-    private const int ColUrl = 5;
-    private const int ColActive = 6;
-    private const int ColMenu = 7;
-    private const int ColSort = 8;
-    private const int ColChildren = 9;
-    private const int ColRedirect = 10;
-    private const int ColAlsoUnder = 11;
-    private const int ColMetaTitle = 12;
-    private const int ColMetaDescription = 13;
-    private const int ColCreated = 14;
-    private const int ColCreatedBy = 15;
-    private const int ColUpdated = 16;
-    private const int ColUpdatedBy = 17;
-    private const int ColId = 18;
+    // They are also the format contract the importer checks, which is why they live here as
+    // named constants rather than as offsets scattered through the writer.
+    public const int ColName = 1;
+    public const int ColLevel = 2;
+    public const int ColSlug = 3;
+    public const int ColRoute = 4;
+    public const int ColParent = 5;
+    public const int ColUrl = 6;
+    public const int ColActive = 7;
+    public const int ColMenu = 8;
+    public const int ColSort = 9;
+    public const int ColChildren = 10;
+    public const int ColRedirect = 11;
+    public const int ColAlsoUnder = 12;
+    public const int ColMetaTitle = 13;
+    public const int ColMetaDescription = 14;
+    public const int ColCreated = 15;
+    public const int ColCreatedBy = 16;
+    public const int ColUpdated = 17;
+    public const int ColUpdatedBy = 18;
+    public const int ColId = 19;
 
-    private static readonly string[] Headers =
+    /// <summary>
+    /// The header row, which doubles as the format contract: the importer refuses a workbook
+    /// whose headers do not match this exactly, which is a far better error than quietly reading
+    /// one column as another.
+    /// </summary>
+    public static readonly string[] Headers =
     [
-        "Name", "Level", "Slug", "Full route", "URL", "Active", "In menu", "Sort order",
-        "Children", "Redirects to", "Also under", "Meta title", "Meta description",
-        "Created (UTC)", "Created by", "Updated (UTC)", "Updated by", "Id",
+        "Name", "Level", "Slug", "Full route", "Parent route", "URL", "Active", "In menu",
+        "Sort order", "Children", "Redirect route", "Also under", "Meta title",
+        "Meta description", "Created (UTC)", "Created by", "Updated (UTC)", "Updated by", "Id",
+    ];
+
+    /// <summary>
+    /// Columns an import never writes back — either derived from the tree or recorded by the
+    /// server. Their headers are greyed, because the file itself is the only place a reader
+    /// finds out which cells are worth editing.
+    /// </summary>
+    private static readonly int[] ReadOnlyColumns =
+    [
+        ColLevel, ColRoute, ColUrl, ColChildren, ColAlsoUnder,
+        ColCreated, ColCreatedBy, ColUpdated, ColUpdatedBy, ColId,
     ];
 
     /// <summary>
@@ -63,7 +82,7 @@ public sealed class CategoryExportService(AppDbContext db, IConfiguration config
     /// by far the most expensive thing this could do.
     /// </summary>
     private static readonly double[] Widths =
-        [38, 6, 22, 34, 42, 8, 9, 10, 9, 28, 28, 30, 46, 17, 16, 17, 16, 38];
+        [38, 6, 22, 34, 34, 42, 8, 9, 10, 9, 28, 28, 30, 46, 17, 16, 17, 16, 38];
 
     private static readonly string[] OverviewHeaders = ["Category", "Route", "Categories in branch"];
     private static readonly double[] OverviewWidths = [38, 34, 22];
@@ -72,6 +91,7 @@ public sealed class CategoryExportService(AppDbContext db, IConfiguration config
 
     private static readonly XLColor Muted = XLColor.FromArgb(0x88, 0x88, 0x88);
     private static readonly XLColor HeaderFill = XLColor.FromArgb(0xEF, 0xEF, 0xEF);
+    private static readonly XLColor ReadOnlyHeaderText = XLColor.FromArgb(0x99, 0x99, 0x99);
 
     /// <summary>Builds the workbook and hands back the bytes ready to be sent.</summary>
     public async Task<byte[]> BuildAsync(CancellationToken ct)
@@ -212,15 +232,26 @@ public sealed class CategoryExportService(AppDbContext db, IConfiguration config
             sheet.Cell(row, ColLevel).Value = depth + 1;
             sheet.Cell(row, ColSlug).Value = c.Slug;
             sheet.Cell(row, ColRoute).Value = c.PathSlug;
+
+            // The one cell that carries structure. A route rather than a name because routes are
+            // unique — there is never a question which "Lighting" was meant — and a route rather
+            // than the row's position because sorting the sheet would otherwise rewrite the tree.
+            sheet.Cell(row, ColParent).Value =
+                c.ParentId is { } parent && byId.TryGetValue(parent, out var above)
+                    ? above.PathSlug
+                    : string.Empty;
+
             sheet.Cell(row, ColUrl).Value = $"{site}/{c.PathSlug}";
             sheet.Cell(row, ColActive).Value = YesNo(c.IsActive);
             sheet.Cell(row, ColMenu).Value = YesNo(c.IsMenu);
             sheet.Cell(row, ColSort).Value = c.SortOrder;
             sheet.Cell(row, ColChildren).Value = (childrenOf.GetValueOrDefault(c.Id) ?? []).Count;
 
+            // The route alone, not "Name (route)": this comes back through the importer, and one
+            // unambiguous token beats a string that has to be picked apart again.
             sheet.Cell(row, ColRedirect).Value =
                 c.RedirectToId is { } target && byId.TryGetValue(target, out var to)
-                    ? $"{to.Name} ({to.PathSlug})"
+                    ? to.PathSlug
                     : string.Empty;
 
             sheet.Cell(row, ColAlsoUnder).Value = string.Join(", ",
@@ -292,6 +323,16 @@ public sealed class CategoryExportService(AppDbContext db, IConfiguration config
         var row = sheet.Range(1, 1, 1, headers.Length);
         row.Style.Font.Bold = true;
         row.Style.Fill.BackgroundColor = HeaderFill;
+
+        // Greyed so the file says for itself which cells are worth editing. Everything here is
+        // either derived from the tree or written by the server, and an import ignores it.
+        if (headers == Headers)
+        {
+            foreach (var column in ReadOnlyColumns)
+            {
+                sheet.Cell(1, column).Style.Font.FontColor = ReadOnlyHeaderText;
+            }
+        }
     }
 
     private static void Finish(IXLWorksheet sheet, int lastRow, int columns)

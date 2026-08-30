@@ -4,6 +4,7 @@ using DeBoetAPI.Common;
 using DeBoetAPI.Data;
 using DeBoetAPI.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace DeBoetAPI.Features.Categories;
 
@@ -196,7 +197,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             ("isMenu", category.IsMenu, isMenu),
             ("redirectTo", category.RedirectToId, redirectToId));
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using var transaction = await BeginUnlessNestedAsync(ct);
 
         category.Name = name;
         category.Slug = finalSlug;
@@ -222,7 +223,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             await RewriteSubtreeSlugsAsync(category.Path, oldPathSlug, newPathSlug, ct);
         }
 
-        await transaction.CommitAsync(ct);
+        await CommitAsync(transaction, ct);
         return CategoryResult.Ok(category);
     }
 
@@ -291,7 +292,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryResult.Fail(CategoryError.DuplicateSlug);
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using var transaction = await BeginUnlessNestedAsync(ct);
 
         category.ParentId = newParentId;
         category.Path = newPath;
@@ -314,7 +315,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         await PlaceAsync(category, position ?? int.MaxValue, ct);
         await db.SaveChangesAsync(ct);
 
-        await transaction.CommitAsync(ct);
+        await CommitAsync(transaction, ct);
         return CategoryResult.Ok(category);
     }
 
@@ -383,7 +384,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             }
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using var transaction = await BeginUnlessNestedAsync(ct);
 
         foreach (var child in children)
         {
@@ -417,7 +418,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         db.Categories.Remove(category);
         await db.SaveChangesAsync(ct);
 
-        await transaction.CommitAsync(ct);
+        await CommitAsync(transaction, ct);
         return (CategoryError.None, children.Select(c => c.Id).ToList());
     }
 
@@ -482,7 +483,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         var child = await db.Categories.FirstOrDefaultAsync(c => c.Id == childId, ct);
         var parent = await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == parentId, ct);
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await using var transaction = await BeginUnlessNestedAsync(ct);
 
         var removed = await db.CategoryLinks
             .Where(l => l.ChildId == childId && l.ParentId == parentId)
@@ -490,7 +491,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 
         if (removed == 0)
         {
-            await transaction.RollbackAsync(ct);
+            await RollbackAsync(transaction, ct);
             return CategoryError.NotFound;
         }
 
@@ -501,7 +502,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             await db.SaveChangesAsync(ct);
         }
 
-        await transaction.CommitAsync(ct);
+        await CommitAsync(transaction, ct);
         return CategoryError.None;
     }
 
@@ -548,6 +549,39 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     /// <param name="depthDelta">The change in depth.</param>
     /// <param name="ct">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <summary>
+    /// Starts a transaction unless the caller already opened one.
+    ///
+    /// A bulk import applies many of these operations as a single unit, and EF throws rather
+    /// than nesting transactions — so each operation owns one only when nothing else does. Called
+    /// on its own, every method behaves exactly as it did before.
+    /// </summary>
+    private async Task<IDbContextTransaction?> BeginUnlessNestedAsync(CancellationToken ct) =>
+        db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(ct)
+            : null;
+
+    /// <summary>Commits only what we started; an outer transaction commits itself.</summary>
+    private static async Task CommitAsync(IDbContextTransaction? transaction, CancellationToken ct)
+    {
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(ct);
+        }
+    }
+
+    /// <summary>
+    /// Rolls back only what we started. Nested, the failure is reported to the caller instead —
+    /// one refused row in a batch is not grounds for this method to abandon the caller's work.
+    /// </summary>
+    private static async Task RollbackAsync(IDbContextTransaction? transaction, CancellationToken ct)
+    {
+        if (transaction is not null)
+        {
+            await transaction.RollbackAsync(ct);
+        }
+    }
+
     private async Task RewriteSubtreeAsync(string oldPath, string newPath, int depthDelta, CancellationToken ct)
     {
         await db.Database.ExecuteSqlInterpolatedAsync(

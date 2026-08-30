@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Alert, Button, Paper, PasswordInput, Stack, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Group, Paper, PasswordInput, Stack, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import { IconLeaf } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
 
 export function LoginForm() {
@@ -54,7 +55,10 @@ export function LoginForm() {
     <Paper withBorder shadow="sm" p="xl" radius="md" w={380}>
       <form onSubmit={form.onSubmit(submit)}>
         <Stack>
-          <Title order={3}>{t('login.heading')}</Title>
+          <Group gap="xs" wrap="nowrap">
+            <IconLeaf size={26} color="var(--mantine-color-myColor-5)" style={{ flexShrink: 0 }} />
+            <Title order={3}>{t('login.heading')}</Title>
+          </Group>
 
           {error && <Alert color="red" title={t('login.failed')}>{error}</Alert>}
 

@@ -5,7 +5,7 @@ import {
   AppShell, AppShellHeader, AppShellMain, Burger, Button, Divider, Drawer, Group, ScrollArea,
   Stack, Text,
 } from '@mantine/core';
-import { IconLogout } from '@tabler/icons-react';
+import { IconLeaf, IconLogout } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
 import { AdminNav } from './admin-nav';
 import { AccountMenu } from './account-menu';
@@ -39,7 +39,13 @@ export function AdminShell({
         <Group h="100%" px="md" justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap">
             <Burger opened={opened} onClick={toggle} size="sm" aria-label={t('nav.menu')} />
-            <Text fw={600} truncate>{t('app.title')}</Text>
+
+            {/* The mark and the title sit in their own group so the burger keeps the wider
+                spacing while the leaf stays tucked against the word it belongs to. */}
+            <Group gap={6} wrap="nowrap">
+              <IconLeaf size={20} color="var(--mantine-color-myColor-5)" style={{ flexShrink: 0 }} />
+              <Text fw={600} truncate>{t('app.title')}</Text>
+            </Group>
           </Group>
 
           {/* Stays in the header: burying a language switcher two taps deep is worse than the

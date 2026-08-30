@@ -40,6 +40,11 @@ public sealed class ApiFactory(
         // The production limit of 10/min would throttle the suite itself, so it is raised by
         // default. RateLimitTests passes a low limit to pin the throttling behaviour.
         builder.UseSetting("RateLimit:AuthPermitPerMinute", authPermitPerMinute.ToString());
+
+        // Same reasoning, and more pressing: these windows are global rather than per-user, so a
+        // handful of export or import tests running together would throttle each other.
+        builder.UseSetting("RateLimit:ExportPermitPerMinute", "10000");
+        builder.UseSetting("RateLimit:ImportPermitPerMinute", "10000");
         builder.UseSetting("Proxy:TrustForwardedHeaders", trustForwardedHeaders.ToString());
         builder.UseSetting("OpenApi:Enabled", enableOpenApi.ToString());
 
