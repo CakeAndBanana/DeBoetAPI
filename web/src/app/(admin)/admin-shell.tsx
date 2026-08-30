@@ -53,16 +53,6 @@ export function AdminShell({
       >
         <Group h="100%" px="md" justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap">
-<<<<<<< HEAD
-            <Burger opened={opened} onClick={toggle} size="sm" aria-label={t('nav.menu')} />
-
-            {/* The mark and the title sit in their own group so the burger keeps the wider
-                spacing while the leaf stays tucked against the word it belongs to. */}
-            <Group gap={6} wrap="nowrap">
-              <IconLeaf size={20} color="var(--mantine-color-myColor-5)" style={{ flexShrink: 0 }} />
-              <Text fw={600} truncate>{t('app.title')}</Text>
-            </Group>
-=======
             <Burger opened={opened} onClick={toggle} size="sm" color="white" aria-label={t('nav.menu')} />
             <ThemeIcon
               variant="white"
@@ -79,7 +69,6 @@ export function AdminShell({
               <Text size="xs" c="myColor.1" fw={500}>{t('app.subtitle')}</Text>
             </Stack>
             <Text fw={700} c="white" hiddenFrom="xs" truncate>{t('app.title')}</Text>
->>>>>>> 72eb01249e881327ffaaf2f2f8c36ff7644ce78b
           </Group>
 
           {/* Stays in the header: burying a language switcher two taps deep is worse than the
