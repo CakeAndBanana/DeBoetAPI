@@ -12,6 +12,15 @@ import { AccountMenu } from './account-menu';
 import { LanguageSwitcher } from './language-switcher';
 import { LiveUpdates } from './live-updates';
 
+// These variables are scoped to the authenticated shell, keeping the login screen's lighter
+// standalone treatment intact. Mantine components use `--mantine-border` for their standard
+// outlines, so setting it here keeps cards, fields, tables, and dividers visually consistent.
+const authenticatedShellStyle: React.CSSProperties & Record<string, string> = {
+  backgroundColor: '#F7F7F7',
+  '--mantine-color-default-border': '#e7e7e7',
+  '--mantine-border': '2px solid #e7e7e7',
+};
+
 /**
  * The frame around every admin page.
  *
@@ -34,11 +43,11 @@ export function AdminShell({
   const [opened, { toggle, close }] = useDisclosure(false);
 
   return (
-    <AppShell header={{ height: 64 }} padding="md">
+    <AppShell header={{ height: 64 }} padding="md" style={authenticatedShellStyle}>
       <AppShellHeader
         style={{
           background: 'linear-gradient(105deg, var(--mantine-color-myColor-9), var(--mantine-color-myColor-6))',
-          borderBottom: '1px solid var(--mantine-color-myColor-4)',
+          borderBottom: '2px solid #e7e7e7',
           boxShadow: '0 4px 14px rgba(5, 64, 10, 0.16)',
         }}
       >
