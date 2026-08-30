@@ -9,6 +9,7 @@ import { IconLeaf, IconLogout } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
 import { AdminNav } from './admin-nav';
 import { AccountMenu } from './account-menu';
+import { ColorSchemeToggle } from '@/components/color-scheme-toggle';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { LiveUpdates } from './live-updates';
 
@@ -16,9 +17,9 @@ import { LiveUpdates } from './live-updates';
 // standalone treatment intact. Mantine components use `--mantine-border` for their standard
 // outlines, so setting it here keeps cards, fields, tables, and dividers visually consistent.
 const authenticatedShellStyle: React.CSSProperties & Record<string, string> = {
-  backgroundColor: '#F7F7F7',
-  '--mantine-color-default-border': '#e7e7e7',
-  '--mantine-border': '2px solid #e7e7e7',
+  backgroundColor: 'var(--panel-surface)',
+  '--mantine-color-default-border': 'var(--panel-border)',
+  '--mantine-border': '2px solid var(--panel-border)',
 };
 
 /**
@@ -47,7 +48,7 @@ export function AdminShell({
       <AppShellHeader
         style={{
           background: 'linear-gradient(105deg, var(--mantine-color-myColor-9), var(--mantine-color-myColor-6))',
-          borderBottom: '2px solid #e7e7e7',
+          borderBottom: '2px solid var(--panel-border)',
           boxShadow: '0 4px 14px rgba(5, 64, 10, 0.16)',
         }}
       >
@@ -73,7 +74,10 @@ export function AdminShell({
 
           {/* Stays in the header: burying a language switcher two taps deep is worse than the
               small amount of room it costs. */}
-          <LanguageSwitcher />
+          <Group gap={4} wrap="nowrap">
+            <ColorSchemeToggle />
+            <LanguageSwitcher />
+          </Group>
         </Group>
       </AppShellHeader>
 

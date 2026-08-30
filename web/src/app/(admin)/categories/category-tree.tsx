@@ -27,27 +27,23 @@ import { useT } from '@/i18n/client';
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
 
 /**
- * How a row's publishing state is coloured: the border, and the far end of the background wash.
+ * How a row's publishing state is coloured: the card's side edges, and the far end of the
+ * background wash.
  *
  * The two are defined together because the wash is meant to read as the same signal as the
  * border, only quieter — kept apart, they are exactly the kind of thing that ends up disagreeing
- * after someone adjusts one of them. A `border` of undefined leaves the card its ordinary
- * outline, so an unremarkable category is marked by its wash alone.
+ * after someone adjusts one of them. A `border` of undefined leaves those edges the card's
+ * ordinary outline, so an unremarkable category is marked by its wash alone.
  *
  * The wash shades are picked to sit at the same distance from white rather than at the same
  * index in their palettes, which is not the same thing: Mantine's blue and violet reach full
  * strength faster than the greens and reds do.
  */
 const ROW_STATES = {
-  live: { border: undefined, wash: 'var(--mantine-color-myColor-0)' },
-  offMenu: { border: 'var(--mantine-color-blue-5)', wash: 'var(--mantine-color-blue-0)' },
-  inactive: { border: 'var(--mantine-color-red-4)', wash: 'var(--mantine-color-red-1)' },
-  // Violet is the one hue with no index at the right strength: shade 1 reads noticeably heavier
-  // than the other three and shade 0 all but disappears, so it is mixed to land between them.
-  neither: {
-    border: 'var(--mantine-color-violet-5)',
-    wash: 'color-mix(in srgb, var(--mantine-color-violet-1) 72%, var(--mantine-color-body))',
-  },
+  live: { border: undefined, wash: 'var(--row-wash-live)' },
+  offMenu: { border: 'var(--mantine-color-blue-5)', wash: 'var(--row-wash-off-menu)' },
+  inactive: { border: 'var(--mantine-color-red-4)', wash: 'var(--row-wash-inactive)' },
+  neither: { border: 'var(--mantine-color-violet-5)', wash: 'var(--row-wash-neither)' },
 } as const;
 
 /**
@@ -621,6 +617,13 @@ function Branch(props: BranchProps) {
 
   const state = rowState(node);
 
+  /**
+   * Set while the card itself is the drop target, as opposed to the gap above or below it. Teal,
+   * not blue: blue now means "off menu", and a drop target has to stay legible against a tree
+   * full of them mid-drag. Undefined leaves every edge whatever it would otherwise have been.
+   */
+  const dropEdge = isHovered && !insertAt ? 'var(--mantine-color-teal-5)' : undefined;
+
   return (
     <>
       <Group gap={0} wrap="nowrap" align="stretch" pb={4}>
@@ -643,12 +646,18 @@ function Branch(props: BranchProps) {
           minWidth: 0,
           opacity: isDragging ? 0.4 : 1,
           cursor: 'default',
-          // Teal, not blue: blue now means "off menu", and a drop target has to stay
-          // legible against a tree full of them mid-drag.
-          borderColor: isHovered && !insertAt ? 'var(--mantine-color-teal-5)' : state.border,
-          // The drop highlight wins outright: mid-drag, knowing where the card will land matters
-          // more than what the category's state is.
-          background: isHovered && !insertAt
+          // The state colour rides the leading and trailing edges alone, leaving top and bottom
+          // the card's ordinary outline, so a column of rows reads as one list rather than a
+          // stack of separate boxes. Longhands throughout rather than the `borderColor`
+          // shorthand, so nothing depends on which order React happens to apply them in.
+          //
+          // The drop highlight overrides that and takes all four sides: mid-drag, knowing where
+          // the card will land matters more than what the category's state is.
+          borderTopColor: dropEdge,
+          borderBottomColor: dropEdge,
+          borderLeftColor: dropEdge ?? state.border,
+          borderRightColor: dropEdge ?? state.border,
+          background: dropEdge
             ? 'var(--mantine-color-teal-light)'
             : rowTint(state.wash),
           borderTop: insertAt === 'before' ? '3px solid var(--mantine-color-teal-6)' : undefined,

@@ -3,6 +3,7 @@ import { Box, Center, Group, Loader, Stack, Text, ThemeIcon } from '@mantine/cor
 import { IconLeaf } from '@tabler/icons-react';
 import { getLocale } from '@/i18n/server';
 import { translatorFor } from '@/i18n';
+import { ColorSchemeToggle } from '@/components/color-scheme-toggle';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { LoginForm } from './login-form';
 
@@ -15,7 +16,7 @@ export default async function LoginPage() {
       p="md"
       pos="relative"
       style={{
-        background: 'linear-gradient(145deg, var(--mantine-color-myColor-0), var(--mantine-color-gray-0) 55%)',
+        background: 'linear-gradient(145deg, var(--panel-login-from), var(--panel-login-to) 55%)',
       }}
     >
       {/*
@@ -24,7 +25,10 @@ export default async function LoginPage() {
         the eye goes first, not below the thing they cannot read.
       */}
       <Box pos="absolute" top="var(--mantine-spacing-md)" right="var(--mantine-spacing-md)">
-        <LanguageSwitcher />
+        <Group gap={4} wrap="nowrap">
+          <ColorSchemeToggle />
+          <LanguageSwitcher />
+        </Group>
       </Box>
 
       {/* LoginForm reads the ?next= param, which forces client rendering — Next requires

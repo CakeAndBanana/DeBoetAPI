@@ -1,5 +1,6 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
+import './theme.css';
 
 import type { Metadata } from 'next';
 import { ColorSchemeScript, MantineProvider, mantineHtmlProps, createTheme, MantineColorsTuple   } from '@mantine/core';
@@ -47,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ColorSchemeScript defaultColorScheme="auto" />
       </head>
       <body>
-        <MantineProvider theme={theme}>
+        <MantineProvider theme={theme} defaultColorScheme="auto">
           <LocaleProvider locale={locale}>
             <Notifications position="top-right" />
             {children}

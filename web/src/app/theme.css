@@ -1,0 +1,59 @@
+/*
+ * The panel's own colour tokens.
+ *
+ * A handful of surfaces here are not Mantine components and so have no theme of their own: the
+ * page behind the cards, the login backdrop, and the wash at the trailing end of a category row.
+ * Those were written as literal light-mode colours, which is why the panel used to come out
+ * half-dark on a machine set to dark — dark inputs and cards sitting on a light grey page.
+ *
+ * Declaring them here instead means there is one place where a colour has to answer for both
+ * schemes. Mantine's ColorSchemeScript always resolves the setting to a concrete
+ * `data-mantine-color-scheme` on <html>, including when it is left on "auto", so keying off that
+ * attribute is the same mechanism Mantine's own stylesheet uses.
+ */
+
+:root {
+  /* The page behind the cards, a shade off the cards themselves, and the hairline the shell
+     draws with. */
+  --panel-surface: #f7f7f7;
+  --panel-border: #e7e7e7;
+
+  /* Endpoints rather than a whole gradient: a gradient has commas in it, and a token is far
+     easier to reason about when it holds one colour. */
+  --panel-login-from: var(--mantine-color-myColor-0);
+  --panel-login-to: var(--mantine-color-gray-0);
+
+  /*
+   * The far end of a category row's background wash, one per publishing state. Light values are
+   * picked by how far they sit from white rather than by palette index, which is not the same
+   * thing — Mantine's blues and violets reach full strength faster than its greens and reds.
+   */
+  --row-wash-live: var(--mantine-color-myColor-0);
+  --row-wash-off-menu: var(--mantine-color-blue-0);
+  --row-wash-inactive: var(--mantine-color-red-1);
+  --row-wash-neither: color-mix(in srgb, var(--mantine-color-violet-1) 72%, var(--mantine-color-body));
+}
+
+:root[data-mantine-color-scheme='dark'] {
+  /* Mantine's dark body is dark-7, so the page goes one step darker and the cards keep sitting
+     slightly proud of it, exactly as the grey page and white cards do in light. */
+  --panel-surface: var(--mantine-color-dark-8);
+  --panel-border: var(--mantine-color-dark-4);
+
+  --panel-login-from: var(--mantine-color-dark-6);
+  --panel-login-to: var(--mantine-color-dark-8);
+
+  /*
+   * Mixed towards the body rather than picked off the palette: the light shades sit within a few
+   * per cent of white and would read as glowing bands on a dark card.
+   *
+   * The percentages differ because equal percentages do not look equal here. Against a dark
+   * ground a bright hue gains far more than a dark one does, so red and violet at the blue's
+   * strength shout, while the brand green — already dark and desaturated — barely registers
+   * until it is pushed well past them. These are matched by eye, not by arithmetic.
+   */
+  --row-wash-live: color-mix(in srgb, var(--mantine-color-myColor-5) 34%, var(--mantine-color-body));
+  --row-wash-off-menu: color-mix(in srgb, var(--mantine-color-blue-6) 22%, var(--mantine-color-body));
+  --row-wash-inactive: color-mix(in srgb, var(--mantine-color-red-6) 15%, var(--mantine-color-body));
+  --row-wash-neither: color-mix(in srgb, var(--mantine-color-violet-6) 17%, var(--mantine-color-body));
+}

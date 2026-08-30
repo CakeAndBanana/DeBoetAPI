@@ -2,6 +2,10 @@
   "app.title": "De Boet Tools",
   "app.subtitle": "Category management",
   "app.language": "Language",
+  "theme.label": "Appearance",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.system": "Follow system",
 
   "common.save": "Save",
   "common.cancel": "Cancel",

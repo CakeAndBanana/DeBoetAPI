@@ -2,6 +2,10 @@
   "app.title": "De Boet Tools",
   "app.subtitle": "Categoriebeheer",
   "app.language": "Taal",
+  "theme.label": "Weergave",
+  "theme.light": "Licht",
+  "theme.dark": "Donker",
+  "theme.system": "Systeem volgen",
 
   "common.save": "Opslaan",
   "common.cancel": "Annuleren",
