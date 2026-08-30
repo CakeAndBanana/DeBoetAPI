@@ -7,6 +7,29 @@ import { Notifications } from '@mantine/notifications';
 import { getLocale } from '@/i18n/server';
 import { LocaleProvider } from '@/i18n/client';
 
+import { MantineProvider, createTheme, MantineColorsTuple } from '@mantine/core';
+
+const myColor: MantineColorsTuple = [
+  '#E3F9E5',
+  '#C1EAC5',
+  '#A3D9A5',
+  '#7BC47F',
+  '#57AE5B',
+  '#3F9142',
+  '#2F8132',
+  '#207227',
+  '#0E5814',
+  '#05400A'
+];
+
+const theme = createTheme({
+  colors: {
+    myColor,
+  },
+  primaryColor: 'myColor',
+});
+
+
 export const metadata: Metadata = {
   title: 'DeBoet Admin',
   description: 'Manage the DeBoetAPI category tree and review the change history.',
@@ -26,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ColorSchemeScript defaultColorScheme="auto" />
       </head>
       <body>
-        <MantineProvider defaultColorScheme="auto">
+        <MantineProvider theme={theme}>
           <LocaleProvider locale={locale}>
             <Notifications position="top-right" />
             {children}
