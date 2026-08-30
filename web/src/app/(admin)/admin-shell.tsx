@@ -22,6 +22,14 @@ const authenticatedShellStyle: React.CSSProperties & Record<string, string> = {
   '--mantine-border': '2px solid var(--panel-border)',
 };
 
+// Mantine's `white` ThemeIcon variant is white in both schemes — there is no dark form of it —
+// so the tile is driven by tokens instead of a variant. Overriding the two custom properties
+// rather than the `background`/`color` themselves keeps it on the same footing the variants use.
+const headerLogoStyle: React.CSSProperties & Record<string, string> = {
+  '--ti-bg': 'var(--header-logo-bg)',
+  '--ti-color': 'var(--header-logo-fg)',
+};
+
 /**
  * The frame around every admin page.
  *
@@ -56,12 +64,11 @@ export function AdminShell({
           <Group gap="sm" wrap="nowrap">
             <Burger opened={opened} onClick={toggle} size="sm" color="white" aria-label={t('nav.menu')} />
             <ThemeIcon
-              variant="white"
-              color="myColor"
               size={36}
               radius="md"
               aria-hidden="true"
               visibleFrom="xs"
+              style={headerLogoStyle}
             >
               <IconLeaf size={21} stroke={2.2} />
             </ThemeIcon>

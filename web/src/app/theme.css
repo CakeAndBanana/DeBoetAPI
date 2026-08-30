@@ -23,6 +23,12 @@
   --panel-login-from: var(--mantine-color-myColor-0);
   --panel-login-to: var(--mantine-color-gray-0);
 
+  /* The logo tile in the header. The odd one out here: the header's gradient is the same green
+     in both schemes, so this pair is not picked against the surface behind it but against the
+     cards below it, which is what the tile is meant to look like a chip of. */
+  --header-logo-bg: var(--mantine-color-white);
+  --header-logo-fg: var(--mantine-color-myColor-6);
+
   /*
    * The far end of a category row's background wash, one per publishing state. Light values are
    * picked by how far they sit from white rather than by palette index, which is not the same
@@ -42,6 +48,11 @@
 
   --panel-login-from: var(--mantine-color-dark-6);
   --panel-login-to: var(--mantine-color-dark-8);
+
+  /* Dark-7 is the card colour, so the tile goes on reading as a chip of panel laid on the green.
+     The leaf climbs the palette to stay legible now that its backing is no longer white. */
+  --header-logo-bg: var(--mantine-color-dark-7);
+  --header-logo-fg: var(--mantine-color-myColor-3);
 
   /*
    * Mixed towards the body rather than picked off the palette: the light shades sit within a few
