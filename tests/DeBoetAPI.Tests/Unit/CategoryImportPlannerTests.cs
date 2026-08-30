@@ -250,6 +250,22 @@ public class CategoryImportPlannerTests
     }
 
     [Fact]
+    public void ACollisionBlamesTheRowThatMovedOntoTheRouteNotTheOneAlreadyThere()
+    {
+        // Halloween takes Christmas's route while Christmas is edited for something unrelated.
+        // Blaming whichever came first in the file would cost Christmas its meta title for a
+        // mistake made two sheets away.
+        var plan = CategoryImportPlanner.Plan(
+            [Row(Live(Christmas), number: 2, metaTitle: "Rewritten in Excel"),
+             Row(Live(Halloween), number: 9, slug: "christmas")],
+            Forest());
+
+        Assert.Equal(ImportRowState.Changed, plan.Rows[0].State);
+        Assert.Equal(ImportRowState.Refused, plan.Rows[1].State);
+        Assert.Equal(Christmas, plan.Steps.Single().Id);
+    }
+
+    [Fact]
     public void ARenameThatCollidesADescendantIsCaughtBeforeAnythingIsWritten()
     {
         // The failure this exists for. Renaming Halloween to "christmas" makes its own route

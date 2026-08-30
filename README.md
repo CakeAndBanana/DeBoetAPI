@@ -130,6 +130,49 @@ then returns the destination already resolved, so a site can answer in one reque
 }
 ```
 
+## Importing an edited spreadsheet
+
+The export goes both ways. Edit the workbook in Excel and upload it at **Import from Excel** on
+the categories screen: `POST /api/v1/categories/import/preview` says what would happen, and
+`POST /api/v1/categories/import` does it. Both are Editor-or-Admin, like every other write.
+
+**Nothing is written until you press Apply.** The preview names every row it would change, every
+row it refuses, and why.
+
+What an import may change: name, slug, meta title, meta description, active, in menu, sort
+order, redirect, and the parent. It never creates a category and never deletes one — a row you
+add is ignored, and a row you delete is simply a row nobody mentioned.
+
+### The columns it reads
+
+`Id` identifies the row and must not be edited. `Updated (UTC)` is how staleness is judged. The
+greyed columns — `Level`, `Full route`, `URL`, `Children`, `Also under`, both `Created` columns,
+`Updated by` — are derived from the tree and ignored. Everything else is yours.
+
+**`Parent route` is the structure.** Put a category's route there and the edited category moves
+under it; leave it blank and the category becomes a root. Indentation and row order are
+decoration — moving a row around the sheet does nothing, which is deliberate, because sorting or
+filtering a sheet would otherwise rewrite the whole tree by accident.
+
+### What it refuses, and why it refuses rather than fails
+
+The whole file is judged against the whole tree before a single write, because the API's own
+validation is pairwise: a batch that is collectively fine can still fail half-way depending on
+which row goes first. So the importer works out the tree your file describes and checks *that* —
+duplicate routes anywhere, including on descendants nobody edited; a parent that does not exist
+or sits inside its own subtree; redirects that would chain; over-long names and meta fields.
+
+A row whose category has changed since the export is reported as **out of date** and skipped on
+its own — the rest still import. This is also what stops you applying the same file twice.
+
+Occasionally two rows are each valid but wait on one another — two siblings swapping routes, say.
+Those are reported as **blocked** rather than half-applied: apply the rest, export again, and
+import them on the second pass.
+
+Everything that is applied goes through the ordinary category endpoints, so each change lands in
+the change history as a normal `Updated` or `Moved` entry, attributed to you, with `(import)` on
+the end of the summary.
+
 ## Admin panel
 
 A Next.js app in [web/](web/) for managing the category tree, the accounts that may edit it,

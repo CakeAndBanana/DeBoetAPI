@@ -170,7 +170,7 @@ public static class CategoryImportPlanner
             {
                 verdicts[i] = new ImportRowPlan(row.Sheet, row.Number, row.Id, row.Name,
                     ImportRowState.Stale, [],
-                    "Changed in the panel after this file was exported. Export again to pick up the newer version.");
+                    "This category has changed since the file was exported — possibly by an earlier import of this same file. Export again to pick up the newer version.");
                 continue;
             }
 
@@ -268,8 +268,14 @@ public static class CategoryImportPlanner
             // A clash usually surfaces on a category nobody touched — a descendant carried onto
             // someone else's route by an ancestor's rename. So a fault names everyone involved,
             // ancestors included, and the row refused is one that actually asked for a change.
-            // If none did, the stored tree is already inconsistent and dropping rows cannot help.
-            var blamed = accepted.FirstOrDefault(c => fault.Implicates(c.Row.Id));
+            //
+            // Of those, the one that moved its own route goes first: when a renamed category
+            // lands on a settled one, the settled one is not at fault, and refusing it would
+            // throw away an unrelated edit — its meta description, say — for someone else's
+            // mistake. If nothing moved, the stored tree is already inconsistent and dropping
+            // rows cannot help.
+            var implicated = accepted.Where(c => fault.Implicates(c.Row.Id)).ToList();
+            var blamed = implicated.FirstOrDefault(MovesItsRoute) ?? implicated.FirstOrDefault();
 
             if (blamed is null)
             {
@@ -348,6 +354,10 @@ public static class CategoryImportPlanner
 
         return steps;
     }
+
+    /// <summary>Whether this change is what puts the category on a different route.</summary>
+    private static bool MovesItsRoute(Candidate c) =>
+        c.Slug != c.Current.Slug || c.ParentId != c.Current.ParentId;
 
     private static ImportStep ToStep(Candidate c) => new(
         c.Row.Id,

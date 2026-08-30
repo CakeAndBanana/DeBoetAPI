@@ -1,5 +1,6 @@
 {
-  "app.title": "DeBoet Demo",
+  "app.title": "De Boet Tools",
+  "app.subtitle": "Categoriebeheer",
   "app.language": "Taal",
 
   "common.save": "Opslaan",
@@ -30,7 +31,7 @@
   "nav.menu": "Menu",
   "nav.signedIn": "aangemeld",
 
-  "login.heading": "DeBoet Demo",
+  "login.heading": "Login",
   "login.username": "Gebruikersnaam of e-mailadres",
   "login.password": "Wachtwoord",
   "login.submit": "Aanmelden",

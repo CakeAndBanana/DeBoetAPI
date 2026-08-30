@@ -3,7 +3,7 @@
 import { useDisclosure } from '@mantine/hooks';
 import {
   AppShell, AppShellHeader, AppShellMain, Burger, Button, Divider, Drawer, Group, ScrollArea,
-  Stack, Text,
+  Stack, Text, ThemeIcon,
 } from '@mantine/core';
 import { IconLeaf, IconLogout } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
@@ -11,6 +11,15 @@ import { AdminNav } from './admin-nav';
 import { AccountMenu } from './account-menu';
 import { LanguageSwitcher } from './language-switcher';
 import { LiveUpdates } from './live-updates';
+
+// These variables are scoped to the authenticated shell, keeping the login screen's lighter
+// standalone treatment intact. Mantine components use `--mantine-border` for their standard
+// outlines, so setting it here keeps cards, fields, tables, and dividers visually consistent.
+const authenticatedShellStyle: React.CSSProperties & Record<string, string> = {
+  backgroundColor: '#F7F7F7',
+  '--mantine-color-default-border': '#e7e7e7',
+  '--mantine-border': '2px solid #e7e7e7',
+};
 
 /**
  * The frame around every admin page.
@@ -34,10 +43,17 @@ export function AdminShell({
   const [opened, { toggle, close }] = useDisclosure(false);
 
   return (
-    <AppShell header={{ height: 56 }} padding="md">
-      <AppShellHeader>
+    <AppShell header={{ height: 64 }} padding="md" style={authenticatedShellStyle}>
+      <AppShellHeader
+        style={{
+          background: 'linear-gradient(105deg, var(--mantine-color-myColor-9), var(--mantine-color-myColor-6))',
+          borderBottom: '2px solid #e7e7e7',
+          boxShadow: '0 4px 14px rgba(5, 64, 10, 0.16)',
+        }}
+      >
         <Group h="100%" px="md" justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap">
+<<<<<<< HEAD
             <Burger opened={opened} onClick={toggle} size="sm" aria-label={t('nav.menu')} />
 
             {/* The mark and the title sit in their own group so the burger keeps the wider
@@ -46,6 +62,24 @@ export function AdminShell({
               <IconLeaf size={20} color="var(--mantine-color-myColor-5)" style={{ flexShrink: 0 }} />
               <Text fw={600} truncate>{t('app.title')}</Text>
             </Group>
+=======
+            <Burger opened={opened} onClick={toggle} size="sm" color="white" aria-label={t('nav.menu')} />
+            <ThemeIcon
+              variant="white"
+              color="myColor"
+              size={36}
+              radius="md"
+              aria-hidden="true"
+              visibleFrom="xs"
+            >
+              <IconLeaf size={21} stroke={2.2} />
+            </ThemeIcon>
+            <Stack gap={0} visibleFrom="xs">
+              <Text fw={700} c="white" lh={1.15} truncate>{t('app.title')}</Text>
+              <Text size="xs" c="myColor.1" fw={500}>{t('app.subtitle')}</Text>
+            </Stack>
+            <Text fw={700} c="white" hiddenFrom="xs" truncate>{t('app.title')}</Text>
+>>>>>>> 72eb01249e881327ffaaf2f2f8c36ff7644ce78b
           </Group>
 
           {/* Stays in the header: burying a language switcher two taps deep is worse than the
