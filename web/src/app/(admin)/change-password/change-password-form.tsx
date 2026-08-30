@@ -49,6 +49,25 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       return;
     }
 
+    if (forced) {
+      // A full page load rather than a client-side push.
+      //
+      // Everything this tab knows about the app was fetched while the account was still being
+      // diverted here, and the answer it has for /categories is "redirect to /change-password".
+      // Pushing asks the router, which can answer from that; and pushing then immediately
+      // refreshing races the two against each other over which route wins. Either way the page
+      // does not move, which is what leaves signing out as the only way forward.
+      //
+      // A real navigation drops all of it and re-runs the proxy against the cookie this request
+      // just rewrote. No notification, because a page load would throw it away — arriving at the
+      // categories screen is the confirmation.
+      // The lint rule below is right in general and wrong here: reusing the router is the exact
+      // thing that fails, because the router is what holds the stale answer.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign('/categories');
+      return;
+    }
+
     notifications.show({
       color: 'green',
       title: t('password.changed'),

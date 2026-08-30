@@ -9,7 +9,7 @@ import { IconLeaf, IconLogout } from '@tabler/icons-react';
 import { useT } from '@/i18n/client';
 import { AdminNav } from './admin-nav';
 import { AccountMenu } from './account-menu';
-import { LanguageSwitcher } from './language-switcher';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { LiveUpdates } from './live-updates';
 
 // These variables are scoped to the authenticated shell, keeping the login screen's lighter

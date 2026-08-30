@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
-import { Center, Group, Loader, Stack, Text, ThemeIcon } from '@mantine/core';
+import { Box, Center, Group, Loader, Stack, Text, ThemeIcon } from '@mantine/core';
 import { IconLeaf } from '@tabler/icons-react';
 import { getLocale } from '@/i18n/server';
 import { translatorFor } from '@/i18n';
+import { LanguageSwitcher } from '@/components/language-switcher';
 import { LoginForm } from './login-form';
 
 export default async function LoginPage() {
@@ -12,10 +13,20 @@ export default async function LoginPage() {
     <Center
       h="100vh"
       p="md"
+      pos="relative"
       style={{
         background: 'linear-gradient(145deg, var(--mantine-color-myColor-0), var(--mantine-color-gray-0) 55%)',
       }}
     >
+      {/*
+        In the corner rather than under the form: this page is the one place someone who cannot
+        read the interface has to get past, so the way out of the wrong language should be where
+        the eye goes first, not below the thing they cannot read.
+      */}
+      <Box pos="absolute" top="var(--mantine-spacing-md)" right="var(--mantine-spacing-md)">
+        <LanguageSwitcher />
+      </Box>
+
       {/* LoginForm reads the ?next= param, which forces client rendering — Next requires
           that to sit behind a Suspense boundary so the rest of the page can prerender. */}
       <Stack gap="lg" align="center">

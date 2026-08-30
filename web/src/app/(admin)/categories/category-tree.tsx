@@ -26,6 +26,19 @@ import { useT } from '@/i18n/client';
 
 const COLLAPSED_KEY = 'deboet.collapsedCategories';
 
+/**
+ * A wash of the brand green at the trailing end of a row.
+ *
+ * Held flat for most of the width so the name, the route and the badges all sit on plain white,
+ * then eased in over the last third. Faint on purpose: the badges are the only colour on a row
+ * that carries meaning, and a background strong enough to notice is strong enough to argue with
+ * them.
+ */
+const ROW_TINT = 'linear-gradient(90deg,'
+  + ' var(--mantine-color-body) 0%,'
+  + ' var(--mantine-color-body) 62%,'
+  + ' var(--mantine-color-myColor-0) 100%)';
+
 /** Stands in for the collapsed set while searching: nothing is collapsed. */
 const EXPANDED: Set<string> = new Set();
 
@@ -602,7 +615,9 @@ function Branch(props: BranchProps) {
           // Teal, not blue: blue now means "off menu", and a drop target has to stay
           // legible against a tree full of them mid-drag.
           borderColor: isHovered && !insertAt ? 'var(--mantine-color-teal-5)' : stateColour,
-          background: isHovered && !insertAt ? 'var(--mantine-color-teal-light)' : undefined,
+          // The drop highlight wins outright: mid-drag, knowing where the card will land matters
+          // more than the decoration.
+          background: isHovered && !insertAt ? 'var(--mantine-color-teal-light)' : ROW_TINT,
           borderTop: insertAt === 'before' ? '3px solid var(--mantine-color-teal-6)' : undefined,
           borderBottom: insertAt === 'after' ? '3px solid var(--mantine-color-teal-6)' : undefined,
         }}
@@ -728,6 +743,15 @@ function Branch(props: BranchProps) {
 
           {/* draggable={false} so pressing a button never starts a drag. */}
           <Group gap={4} wrap="nowrap" draggable={false} onDragStart={(e) => e.preventDefault()}>
+            {/*
+              Closes the row off: everything to the left of this describes the category,
+              everything to the right does something to it. Inside this group rather than
+              alongside it, because the row is laid out with space-between — a divider sitting
+              as its own child would be pushed into the middle whenever a row has no meta text
+              to fill the gap.
+            */}
+            <Divider orientation="vertical" mr="xs" />
+
             <Tooltip label={t('common.addChild')}>
               <ActionIcon
                 variant="subtle"
