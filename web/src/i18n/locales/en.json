@@ -106,6 +106,8 @@
   "details.noRedirect": "Nothing — this category is shown on its own address.",
   "categories.fieldActive": "Active",
   "categories.fieldActiveHelp": "Hidden from listings when off, together with everything under it",
+  "categories.fieldActiveBlocked": "Off while \"{name}\" is inactive — everything under it is too",
+  "categories.fieldActiveHelp": "Hidden from listings when off, together with everything under it",
   "categories.fieldMenu": "In menu",
   "categories.fieldMenuHelp": "Appears in navigation",
   "categories.savedMessage": "Category saved.",

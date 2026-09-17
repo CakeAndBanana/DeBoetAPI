@@ -88,6 +88,12 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
   const [moving, setMoving] = useState<CategoryNode | null>(null);
   const [deleting, setDeleting] = useState<CategoryNode | null>(null);
   /**
+   * The category being edited, or null when the dialog is shut. Seeded from the tree's own copy
+   * of the row: every field the form writes is already on the node, so opening the dialog costs
+   * no round trip and shows no loader.
+   */
+  const [editing, setEditing] = useState<CategoryNode | null>(null);
+  /**
    * The category being created, or null when the dialog is shut. `parent` is the node it will
    * hang under, so a null *inside* this object means a new root — which is why the whole thing
    * is nullable rather than just tracking the parent id.
@@ -433,6 +439,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
             onDelete={setDeleting}
             onCreate={beginCreate}
             onView={setViewing}
+            onEdit={setEditing}
             siteUrl={siteUrl}
             draggingAllowed={draggingAllowed}
             onDragBegin={beginDrag}
@@ -489,11 +496,48 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
         )}
       </Modal>
 
+      {/*
+        Editing works the same way as creating, and for the same reason: the row being changed
+        stays visible behind the dialog, and closing it leaves the tree exactly as it was rather
+        than returning from a page and rebuilding the view from scratch.
+
+        The fields are seeded from the node already in hand — the tree is fetched with every
+        column the form writes — so the dialog opens filled in, with nothing to wait for.
+      */}
+      <Modal
+        opened={!!editing}
+        onClose={() => setEditing(null)}
+        size="lg"
+        title={t('categories.editTitle', { name: editing?.name ?? '' })}
+      >
+        {editing && (
+          <CategoryForm
+            id={editing.id}
+            options={options}
+            initial={{
+              name: editing.name,
+              slug: editing.slug,
+              redirectToId: editing.redirectToId,
+              metaTitle: editing.metaTitle ?? '',
+              metaDescription: editing.metaDescription ?? '',
+              // The tree types this as int32, which openapi-typescript widens to number | string.
+              sortOrder: Number(editing.sortOrder),
+              isActive: editing.isActive,
+              isMenu: editing.isMenu,
+            }}
+            onClose={() => setEditing(null)}
+          />
+        )}
+      </Modal>
+
       <CategoryDetailsModal
         categoryId={viewing?.id ?? null}
         categoryName={viewing?.name ?? ''}
         siteUrl={siteUrl}
         onClose={() => setViewing(null)}
+        /* Hands the row straight over to the edit dialog, so "Edit" from the details view is
+           one dialog replacing another rather than a trip to a page. */
+        onEdit={() => { setEditing(viewing); setViewing(null); }}
       />
 
       <Modal opened={!!moving} onClose={() => setMoving(null)} title={t('categories.moveTitle', { name: moving?.name ?? '' })}>
@@ -561,6 +605,8 @@ interface BranchProps {
   /** Opens the creation dialog with this node preselected as the parent. */
   onCreate: (n: CategoryNode) => void;
   onView: (n: CategoryNode) => void;
+  /** Opens the edit dialog on this node. */
+  onEdit: (n: CategoryNode) => void;
   siteUrl: string;
   /** Search terms, for highlighting. Empty when not searching. */
   terms: string[];
@@ -804,7 +850,11 @@ function Branch(props: BranchProps) {
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t('common.edit')}>
-              <ActionIcon component={Link} href={`/categories/${node.id}/edit`} variant="subtle">
+              <ActionIcon
+                variant="subtle"
+                aria-label={t('common.edit')}
+                onClick={() => props.onEdit(node)}
+              >
                 <IconPencil size={16} />
               </ActionIcon>
             </Tooltip>
