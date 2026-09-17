@@ -101,18 +101,20 @@ The user would have to set up a new password on the initial login
 
 ## How a slug is made
 
-The slug is a category's own segment of the route; the full route joins the segments with a
-hyphen, so a **derived** slug never contains one.
+The slug is a category's own segment of the route. A hyphen joins the words inside a segment
+and also joins the segments of the full route, so a route is matched whole rather than split
+back into its levels; `path_slug` is uniquely indexed, so two different trees that would spell
+the same route collide on save instead of both answering to it.
 
 Derived from the name when the field is left blank:
 
 | Name | Slug |
 |---|---|
-| `Christmas Light` | `christmas_light` |
-| `Christmas Light's` | `christmas_lights` |
-| `Kerst & Verlichting!` | `kerst_verlichting` |
-| `Café Déjà Vu` | `cafe_deja_vu` |
-| `Größe Blåbær` | `grosse_blabaer` |
+| `Christmas Light` | `christmas-light` |
+| `Christmas Light's` | `christmas-lights` |
+| `Kerst & Verlichting!` | `kerst-verlichting` |
+| `Café Déjà Vu` | `cafe-deja-vu` |
+| `Größe Blåbær` | `grosse-blabaer` |
 
 ## Category redirects
 

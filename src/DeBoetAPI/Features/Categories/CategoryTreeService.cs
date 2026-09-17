@@ -51,10 +51,12 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     public const char PathSlugSeparator = '-';
 
     /// <summary>
-    /// Joins the words of a derived slug: "Christmas Light" becomes <c>christmas_light</c>.
-    /// Not a hyphen, because that separates levels in the full route.
+    /// Joins the words of a derived slug: "Christmas Light" becomes <c>christmas-light</c>.
+    /// The same character that separates levels, because a hyphen is what a reader expects
+    /// between the words of a URL; a route is therefore read as a whole rather than split
+    /// back into its levels.
     /// </summary>
-    public const char WordSeparator = '_';
+    public const char WordSeparator = PathSlugSeparator;
 
 
     /// <summary>
@@ -703,16 +705,15 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     /// <summary>
     /// Tidies a slug someone typed by hand.
     /// <para>
-    /// Letters, digits, hyphens and underscores survive; anything else becomes a hyphen. The
-    /// underscore has to survive: a derived slug is full of them, and the panel submits the
-    /// stored slug on every save — rewriting them to hyphens here would silently change a
-    /// category's route each time somebody edited its name.
+    /// Letters, digits and hyphens survive; anything else becomes a hyphen. A derived slug is
+    /// made of the same characters, so the stored slug the panel submits on every save comes
+    /// back unchanged and editing a name never silently moves a category's route.
     /// </para>
     /// </summary>
     public static string NormalizeSlug(string value)
     {
         var mapped = new string([.. ToAscii(value)
-            .Select(c => IsPlain(c) || c == WordSeparator ? c : PathSlugSeparator)]);
+            .Select(c => IsPlain(c) ? c : PathSlugSeparator)]);
 
         return Tidy(mapped);
     }
@@ -720,12 +721,10 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
     /// <summary>
     /// Derives a slug from a name.
     /// <para>
-    /// Spaces become underscores and everything else that is not a letter or digit is dropped,
-    /// so "Christmas Light" gives <c>christmas_light</c> and "Christmas Light's" gives
-    /// <c>christmas_lights</c> — the apostrophe disappears rather than splitting the word.
+    /// Spaces become hyphens and everything else that is not a letter or digit is dropped,
+    /// so "Christmas Light" gives <c>christmas-light</c> and "Christmas Light's" gives
+    /// <c>christmas-lights</c> — the apostrophe disappears rather than splitting the word.
     /// </para>
-    /// The hyphen is left well alone: it delimits levels in the full route, so a derived
-    /// segment must never contain one.
     /// </summary>
     public static string Slugify(string value)
     {
@@ -790,10 +789,8 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 
         foreach (var c in mapped)
         {
-            var isSeparator = c == WordSeparator || c == PathSlugSeparator;
-
             // Skips a separator at the very start, and any repeat of the one before it.
-            if (isSeparator && (builder.Length == 0 || builder[^1] == c))
+            if (c == PathSlugSeparator && (builder.Length == 0 || builder[^1] == c))
             {
                 continue;
             }
@@ -801,8 +798,7 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             builder.Append(c);
         }
 
-        while (builder.Length > 0
-            && (builder[^1] == WordSeparator || builder[^1] == PathSlugSeparator))
+        while (builder.Length > 0 && builder[^1] == PathSlugSeparator)
         {
             builder.Length--;
         }
