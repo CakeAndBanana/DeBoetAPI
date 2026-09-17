@@ -1,5 +1,6 @@
 import { Stack, Title } from '@mantine/core';
-import { flatten, getTree } from '@/lib/categories';
+import { flatten } from '@/lib/categories';
+import { getTree } from '@/lib/categories-api';
 import { getT } from '@/i18n/server';
 import { CategoryTree } from './category-tree';
 

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { apiFetch } from '@/lib/api';
-import { getCategory, getCategoryHistory, type AuditEntry, type Paged } from '@/lib/categories';
+import type { AuditEntry, Paged } from '@/lib/categories';
+import { getCategory, getCategoryHistory } from '@/lib/categories-api';
 import { ApiError } from '@/lib/problem';
 
 export interface ActionResult {

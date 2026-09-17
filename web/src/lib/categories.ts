@@ -1,4 +1,10 @@
-import { apiFetch } from './api';
+/**
+ * The shapes these endpoints return, and the pure helpers that work on them.
+ *
+ * Deliberately free of imports that only resolve on the server — Client Components import
+ * `CategoryOption` and `inactiveAbove` from here. The requests themselves live in
+ * `categories-api.ts`.
+ */
 import type { components } from './api-types';
 
 export type Category = components['schemas']['CategoryResponse'];
@@ -12,54 +18,6 @@ export interface Paged<T> {
   pageSize: number;
   totalCount: number;
   totalPages: number;
-}
-
-/** The admin view deliberately includes inactive and off-menu categories. */
-export function getTree() {
-  return apiFetch<CategoryNode[]>('/api/v1/categories/tree?includeInactive=true');
-}
-
-export function getCategory(idOrSlug: string) {
-  return apiFetch<CategoryDetail>(`/api/v1/categories/${idOrSlug}`);
-}
-
-export function listCategories(pageSize = 200) {
-  return apiFetch<Paged<Category>>(
-    `/api/v1/categories?includeInactive=true&pageSize=${pageSize}`,
-  );
-}
-
-/** One category's history. Paged like the main feed: a busy category outgrows one screen. */
-export function getCategoryHistory(id: string, page?: number) {
-  const params = new URLSearchParams({ pageSize: String(AUDIT_PAGE_SIZE) });
-  if (page) params.set('page', String(page));
-
-  return apiFetch<Paged<AuditEntry>>(`/api/v1/categories/${id}/history?${params}`);
-}
-
-/**
- * Rows per page of history.
- *
- * Enough that paging is rare in practice, and far short of loading a whole table: ten thousand
- * changes in one response would be slow to fetch, slow to render and useless to read.
- */
-export const AUDIT_PAGE_SIZE = 250;
-
-export interface AuditFilters {
-  entityType?: string;
-  action?: string;
-  changedById?: string;
-  page?: number;
-}
-
-export function getAudit(filters: AuditFilters = {}) {
-  const params = new URLSearchParams({ pageSize: String(AUDIT_PAGE_SIZE) });
-  if (filters.entityType) params.set('entityType', filters.entityType);
-  if (filters.action) params.set('action', filters.action);
-  if (filters.changedById) params.set('changedById', filters.changedById);
-  if (filters.page) params.set('page', String(filters.page));
-
-  return apiFetch<Paged<AuditEntry>>(`/api/v1/audit?${params}`);
 }
 
 export interface CategoryOption {

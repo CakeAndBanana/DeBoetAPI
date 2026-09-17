@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import { Stack, Title } from '@mantine/core';
 import { ApiError } from '@/lib/problem';
-import { flatten, getCategory, getTree } from '@/lib/categories';
+import { flatten } from '@/lib/categories';
+import { getCategory, getTree } from '@/lib/categories-api';
 import { getT } from '@/i18n/server';
 import { CategoryForm } from '../../category-form';
 

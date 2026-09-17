@@ -1,5 +1,5 @@
 import { Anchor, Stack, Text, Title } from '@mantine/core';
-import { getCategoryHistory } from '@/lib/categories';
+import { getCategoryHistory } from '@/lib/categories-api';
 import { AuditTable } from '@/components/audit-table';
 import { AuditPagination } from '@/components/audit-pagination';
 import { getT } from '@/i18n/server';

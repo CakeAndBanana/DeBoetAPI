@@ -1,6 +1,7 @@
 import { Group, Stack, Text, Title } from '@mantine/core';
 import { apiFetch } from '@/lib/api';
-import { getAudit, type Paged } from '@/lib/categories';
+import type { Paged } from '@/lib/categories';
+import { getAudit } from '@/lib/categories-api';
 import type { components } from '@/lib/api-types';
 import { AuditTable } from '@/components/audit-table';
 import { getT } from '@/i18n/server';
