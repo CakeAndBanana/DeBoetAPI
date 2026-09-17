@@ -19,10 +19,12 @@ interface Props {
   onClose: () => void;
   /** Swaps this dialog for the edit one. Editing happens over the tree, not on a page. */
   onEdit: () => void;
+  /** Decided by the tree, so both of its dialogs behave the same way on a phone. */
+  fullScreen: boolean;
 }
 
 export function CategoryDetailsModal({
-  categoryId, categoryName, siteUrl, onClose, onEdit,
+  categoryId, categoryName, siteUrl, onClose, onEdit, fullScreen,
 }: Props) {
   const t = useT();
   type Loaded = { status: 'error'; message: string } | { status: 'ready'; details: CategoryDetails };
@@ -58,7 +60,13 @@ export function CategoryDetailsModal({
     loaded && loaded.id === categoryId ? loaded.result : { status: 'loading' };
 
   return (
-    <Modal opened={!!categoryId} onClose={onClose} title={categoryName} size="lg">
+    <Modal
+      opened={!!categoryId}
+      onClose={onClose}
+      title={categoryName}
+      size="lg"
+      fullScreen={fullScreen}
+    >
       {state.status === 'loading' && (
         <Group justify="center" py="xl"><Loader size="sm" /></Group>
       )}

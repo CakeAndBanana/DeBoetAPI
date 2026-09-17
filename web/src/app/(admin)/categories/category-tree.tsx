@@ -6,6 +6,7 @@ import {
   ActionIcon, Anchor, Badge, Box, Button, Card, Code, Divider, Group, Highlight, Modal, Paper,
   Stack, Text, TextInput, Tooltip, UnstyledButton,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
   IconArrowDown, IconArrowsMove, IconArrowUp, IconChevronDown, IconChevronRight,
@@ -84,6 +85,17 @@ interface Props {
 
 export function CategoryTree({ nodes, options, siteUrl }: Props) {
   const t = useT();
+  /**
+   * A dialog takes the whole screen on a phone.
+   *
+   * The category form is eight fields deep; squeezed into what is left of a 360px screen after
+   * the dialog's own margins, every label wraps and the switches end up beneath their own
+   * descriptions. There is nothing useful to see behind it at that width anyway — the point of
+   * keeping the tree visible is lost on a screen this size, so the room is better spent on the
+   * form. Resolved after mount rather than during render, which is what keeps the server's
+   * markup and the browser's first pass agreeing.
+   */
+  const fullScreen = useMediaQuery('(max-width: 48em)', false) ?? false;
   const [viewing, setViewing] = useState<CategoryNode | null>(null);
   const [moving, setMoving] = useState<CategoryNode | null>(null);
   const [deleting, setDeleting] = useState<CategoryNode | null>(null);
@@ -483,6 +495,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
         opened={!!creating}
         onClose={() => setCreating(null)}
         size="lg"
+        fullScreen={fullScreen}
         title={creating?.parent
           ? t('categories.newUnder', { name: creating.parent.name })
           : t('categories.newTitle')}
@@ -508,6 +521,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
         opened={!!editing}
         onClose={() => setEditing(null)}
         size="lg"
+        fullScreen={fullScreen}
         title={t('categories.editTitle', { name: editing?.name ?? '' })}
       >
         {editing && (
@@ -535,6 +549,7 @@ export function CategoryTree({ nodes, options, siteUrl }: Props) {
         categoryName={viewing?.name ?? ''}
         siteUrl={siteUrl}
         onClose={() => setViewing(null)}
+        fullScreen={fullScreen}
         /* Hands the row straight over to the edit dialog, so "Edit" from the details view is
            one dialog replacing another rather than a trip to a page. */
         onEdit={() => { setEditing(viewing); setViewing(null); }}
