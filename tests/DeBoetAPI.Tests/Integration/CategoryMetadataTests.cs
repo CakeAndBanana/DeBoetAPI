@@ -67,15 +67,15 @@ public class CategoryMetadataTests(PostgresFixture postgres) : CategoryTestBase(
     }
 
     [Fact]
-    public async Task ANameStillDerivesASlugWithoutHyphens()
+    public async Task ANameStillDerivesASlugWithoutSpaces()
     {
         var response = await Admin.PostAsJsonAsync("/api/v1/categories",
             new { name = $"Christmas Lights {Guid.NewGuid():N}" });
         response.EnsureSuccessStatusCode();
         var created = (await response.Content.ReadFromJsonAsync<CategoryResponse>())!;
 
-        Assert.StartsWith("christmas_lights_", created.Slug);
-        Assert.DoesNotContain('-', created.Slug);
+        Assert.StartsWith("christmas-lights-", created.Slug);
+        Assert.DoesNotContain(' ', created.Slug);
     }
 
     [Fact]

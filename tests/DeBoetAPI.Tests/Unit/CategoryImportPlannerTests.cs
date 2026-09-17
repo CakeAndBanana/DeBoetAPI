@@ -223,7 +223,7 @@ public class CategoryImportPlannerTests
             [Row(Live(Trees), name: "Christmas Light's", slug: "")], Forest());
 
         Assert.Equal(ImportRowState.Changed, Only(plan).State);
-        Assert.Equal("christmas_lights", plan.Steps.Single().Slug);
+        Assert.Equal("christmas-lights", plan.Steps.Single().Slug);
     }
 
     // ---- judging the batch as a whole -------------------------------------------------------

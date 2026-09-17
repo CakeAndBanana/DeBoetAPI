@@ -63,18 +63,18 @@ public class CategoryImportTests(PostgresFixture postgres) : CategoryTestBase(po
         var (root, child) = await BranchAsync("Import Rename");
         var grandchild = await CreateCategoryAsync("Deep", child.Id, slug: UniqueSlug("deep"));
 
-        var edited = Edit(await ExportAsync(), root.Name, child.Id, Col.ColSlug, "renamed_branch");
+        var edited = Edit(await ExportAsync(), root.Name, child.Id, Col.ColSlug, "renamed-branch");
         var result = await Read(await Post(Admin, ImportRoute, edited));
 
         Assert.Equal(1, result.Applied);
 
         var after = await GetCategoryAsync(child.Id);
-        Assert.Equal("renamed_branch", after.Category.Slug);
-        Assert.Equal($"{root.PathSlug}-renamed_branch", after.Category.PathSlug);
+        Assert.Equal("renamed-branch", after.Category.Slug);
+        Assert.Equal($"{root.PathSlug}-renamed-branch", after.Category.PathSlug);
 
         // The subtree has to follow, or every page below it 404s.
         var below = await GetCategoryAsync(grandchild.Id);
-        Assert.StartsWith($"{root.PathSlug}-renamed_branch-", below.Category.PathSlug, StringComparison.Ordinal);
+        Assert.StartsWith($"{root.PathSlug}-renamed-branch-", below.Category.PathSlug, StringComparison.Ordinal);
     }
 
     [Fact]
