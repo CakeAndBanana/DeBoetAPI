@@ -550,6 +550,7 @@ public static class CategoryEndpoints
         CategoryError.LinkDuplicatesMainParent => TypedResults.Problem("That category is already the main parent.", statusCode: StatusCodes.Status409Conflict),
         CategoryError.RedirectNotFound => TypedResults.Problem("The category to redirect to was not found.", statusCode: StatusCodes.Status404NotFound),
         CategoryError.RedirectChain => TypedResults.Problem("Redirects are one hop only: a category cannot forward to one that already forwards, and a destination cannot forward on.", statusCode: StatusCodes.Status409Conflict),
+        CategoryError.ParentInactive => TypedResults.Problem("A category cannot be active while a category above it is inactive. Switch the one above back on first, or leave this one inactive.", statusCode: StatusCodes.Status409Conflict),
         _ => TypedResults.Problem("Unexpected category error.", statusCode: StatusCodes.Status500InternalServerError),
     };
 }

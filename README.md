@@ -132,6 +132,29 @@ then returns the destination already resolved, so a site can answer in one reque
 }
 ```
 
+## Active, and what it takes with it
+
+A category is never active while the category above it is not: a section that is not published
+cannot hold published ones.
+
+Switching a section off switches off every category beneath it, each with its own entry in the
+change history naming the section it followed. Switching it back on does **not** bring them
+back — which of them were deliberately off is recorded nowhere, so they stay off and are
+switched on one at a time.
+
+Switching one back on while something above it is still off is refused with `409`; the switch
+that is actually in the way is the one further up. Creating an active category under an inactive
+one is refused the same way — create it inactive instead. Moving a category under an inactive
+one is *not* refused: it and its subtree are switched off with it, because parking a branch
+under an unpublished section is exactly what that means.
+
+Secondary parents (`Also under`) take no part in this. The main parent is what gives a category
+its route, and it is what decides whether the category is published.
+
+An import follows the same rule. Children left as `Yes` under a section the file switches off
+are brought down with it and say so in the preview, while a row asking to switch one *on*
+underneath a section that stays off is refused on its own.
+
 ## Importing an edited spreadsheet
 
 The export goes both ways. Edit the workbook in Excel and upload it at **Import from Excel** on

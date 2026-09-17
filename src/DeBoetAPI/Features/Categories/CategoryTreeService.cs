@@ -23,6 +23,7 @@ public enum CategoryError
     LinkDuplicatesMainParent,
     RedirectNotFound,
     RedirectChain,
+    ParentInactive,
 }
 
 /// <summary>
@@ -101,6 +102,13 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         if (await db.Categories.AnyAsync(c => c.PathSlug == pathSlug, ct))
         {
             return CategoryResult.Fail(CategoryError.DuplicateSlug);
+        }
+
+        // Nothing is born active underneath something that is switched off. Creating it inactive
+        // is the way to prepare a section that is not published yet.
+        if (isActive && await FirstInactiveAboveAsync(parent, ct) is not null)
+        {
+            return CategoryResult.Fail(CategoryError.ParentInactive);
         }
 
         var redirectError = await ValidateRedirectAsync(Guid.Empty, redirectToId, ct);
@@ -188,6 +196,16 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
             return CategoryResult.Fail(redirectError);
         }
 
+        // Switching one back on is refused while anything above it is still off, rather than
+        // quietly ignored: the category would be unreachable either way, and the person asking
+        // for it is one level below the switch they actually mean.
+        if (isActive && !category.IsActive && await FirstInactiveAboveAsync(parent, ct) is not null)
+        {
+            return CategoryResult.Fail(CategoryError.ParentInactive);
+        }
+
+        var wasActive = category.IsActive;
+
         // Creates a summary of the changes made to the category for auditing purposes.
         var summary = AuditLog.Diff(
             ("name", category.Name, name),
@@ -219,6 +237,11 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         }
 
         await db.SaveChangesAsync(ct);
+
+        if (wasActive && !isActive)
+        {
+            await DeactivateSubtreeAsync(category, ct);
+        }
 
         if (oldPathSlug != newPathSlug)
         {
@@ -316,6 +339,14 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
 
         await PlaceAsync(category, position ?? int.MaxValue, ct);
         await db.SaveChangesAsync(ct);
+
+        // Landing under something that is switched off takes the whole branch out of circulation
+        // with it. Refusing the move instead would be the stricter reading, but a category is
+        // routinely parked under a section that is not published yet, and that is the same move.
+        if (await FirstInactiveAboveAsync(newParent, ct) is { } switchedOff)
+        {
+            await DeactivateBranchAsync(category, switchedOff.Name, ct);
+        }
 
         await CommitAsync(transaction, ct);
         return CategoryResult.Ok(category);
@@ -541,6 +572,104 @@ public sealed class CategoryTreeService(AppDbContext db, AuditLog audit)
         includeSelf
             ? db.Categories.Where(c => c.Path.StartsWith(category.Path))
             : db.Categories.Where(c => c.Path.StartsWith(category.Path) && c.Id != category.Id);
+
+    /// <summary>
+    /// The switched-off category a new child of this parent would sit below — the parent itself,
+    /// or the nearest one above it on the main parent chain. Null when the whole chain is on,
+    /// which is the only state in which a category may be active.
+    /// </summary>
+    /// <param name="parent">The prospective parent, or null for a root.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>The nearest inactive ancestor, or null if there is none.</returns>
+    private async Task<Category?> FirstInactiveAboveAsync(Category? parent, CancellationToken ct)
+    {
+        if (parent is null)
+        {
+            return null;
+        }
+
+        if (!parent.IsActive)
+        {
+            return parent;
+        }
+
+        // The ids are already in the parent's materialised path, so the chain costs one query by
+        // primary key rather than one per level. The deepest is the nearest, and the nearest is
+        // the one worth naming: it is the switch somebody has to find.
+        var ancestorIds = ParsePath(parent.Path).Where(i => i != parent.Id).ToList();
+
+        if (ancestorIds.Count == 0)
+        {
+            return null;
+        }
+
+        return await db.Categories.AsNoTracking()
+            .Where(c => ancestorIds.Contains(c.Id) && !c.IsActive)
+            .OrderByDescending(c => c.Depth)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// Switches a category off together with everything below it, for a branch that has just been
+    /// moved underneath something inactive.
+    /// </summary>
+    /// <param name="category">The root of the branch.</param>
+    /// <param name="because">The name of the inactive category this one now follows.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task DeactivateBranchAsync(Category category, string because, CancellationToken ct)
+    {
+        if (category.IsActive)
+        {
+            category.IsActive = false;
+            category.UpdatedAt = DateTimeOffset.UtcNow;
+            category.UpdatedById = audit.ActorId;
+            audit.RecordCategory(category, AuditAction.Updated, Follows(because));
+            await db.SaveChangesAsync(ct);
+        }
+
+        await DeactivateSubtreeAsync(category, ct);
+    }
+
+    /// <summary>
+    /// Switches off everything below a category that has just been switched off itself: a section
+    /// that is not published cannot hold published sections.
+    /// <para>
+    /// Written through the change tracker rather than as one UPDATE, unlike the path rewrites
+    /// alongside it, because each descendant that actually changes earns its own audit entry —
+    /// a category that quietly went dark is the first thing somebody looks for in the history.
+    /// Only the ones that were on are touched, so the ones already off keep the entry that
+    /// records why.
+    /// </para>
+    /// </summary>
+    /// <param name="category">The category whose descendants to switch off.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    private async Task DeactivateSubtreeAsync(Category category, CancellationToken ct)
+    {
+        var descendants = await DescendantsOf(category, includeSelf: false)
+            .Where(c => c.IsActive)
+            .ToListAsync(ct);
+
+        if (descendants.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var descendant in descendants)
+        {
+            descendant.IsActive = false;
+            descendant.UpdatedAt = DateTimeOffset.UtcNow;
+            descendant.UpdatedById = audit.ActorId;
+            audit.RecordCategory(descendant, AuditAction.Updated, Follows(category.Name));
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Worded as <see cref="AuditLog.Diff"/> words it, so the history reads as one list.</summary>
+    private static string Follows(string ancestor) =>
+        $"isActive: True -> False; switched off with '{ancestor}'";
 
     /// <summary>
     /// Write the new path and depth to everything strictly below a moved node. 

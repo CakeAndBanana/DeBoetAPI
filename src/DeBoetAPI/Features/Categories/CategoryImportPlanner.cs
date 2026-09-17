@@ -204,12 +204,12 @@ public static class CategoryImportPlanner
                 continue;
             }
 
-            candidates.Add(new Candidate(i, row, current, parentId, redirectId, ResolveSlug(row)));
+            candidates.Add(new Candidate(i, row, current, parentId, redirectId, ResolveSlug(row), row.IsActive));
         }
 
         // Everything above judged a row on its own. What follows judges them together: the shape
         // of the tree they add up to, and whether that shape is reachable from where we are now.
-        var accepted = Settle(candidates, live, verdicts);
+        var accepted = Resolve(Settle(candidates, live, verdicts), live, verdicts);
         var steps = Order(accepted, live, byId, verdicts);
 
         foreach (var candidate in accepted)
@@ -287,6 +287,50 @@ public static class CategoryImportPlanner
         }
 
         return accepted;
+    }
+
+    /// <summary>
+    /// Applies the rule that nothing is active below something inactive, judged against the tree
+    /// the workbook would produce rather than the one stored now.
+    ///
+    /// A row that leaves a category on while an ancestor row switches off is brought down with it.
+    /// That is the ordinary shape of "close this section for the season": the children are
+    /// exported as Yes and nobody edits forty of them, so refusing each one would turn a single
+    /// edit into a page of complaints. A row asking to switch a category back on underneath one
+    /// that stays off is refused instead — it cannot be honoured either way, and quietly doing
+    /// nothing about it is worse than saying so.
+    /// </summary>
+    /// <param name="accepted">The candidates that survived <see cref="Settle"/>.</param>
+    /// <param name="live">The tree as stored.</param>
+    /// <param name="verdicts">Collects a verdict for any row refused here.</param>
+    /// <returns>The candidates to apply, with their active flag resolved.</returns>
+    private static List<Candidate> Resolve(
+        List<Candidate> accepted,
+        IReadOnlyList<ImportSnapshot> live,
+        Dictionary<int, ImportRowPlan> verdicts)
+    {
+        var world = World.From(live, accepted);
+        var resolved = new List<Candidate>(accepted.Count);
+
+        foreach (var candidate in accepted)
+        {
+            if (!candidate.Row.IsActive || !world.AnythingInactiveAbove(candidate.Row.Id))
+            {
+                resolved.Add(candidate);
+                continue;
+            }
+
+            if (!candidate.Current.IsActive)
+            {
+                verdicts[candidate.Index] = Refuse(candidate.Row,
+                    "A category above this one is inactive, so this cannot be switched on. Switch that one on first.");
+                continue;
+            }
+
+            resolved.Add(candidate with { IsActive = false });
+        }
+
+        return resolved;
     }
 
     /// <summary>
@@ -368,7 +412,7 @@ public static class CategoryImportPlanner
         Blank(c.Row.MetaTitle),
         Blank(c.Row.MetaDescription),
         c.Row.SortOrder,
-        c.Row.IsActive,
+        c.IsActive,
         c.Row.IsMenu,
         c.RedirectId,
         ChangesValues(c));
@@ -386,7 +430,7 @@ public static class CategoryImportPlanner
         || Blank(c.Current.MetaTitle) != Blank(c.Row.MetaTitle)
         || Blank(c.Current.MetaDescription) != Blank(c.Row.MetaDescription)
         || c.Current.SortOrder != c.Row.SortOrder
-        || c.Current.IsActive != c.Row.IsActive
+        || c.Current.IsActive != c.IsActive
         || c.Current.IsMenu != c.Row.IsMenu
         || c.Current.RedirectToId != c.RedirectId;
 
@@ -409,7 +453,7 @@ public static class CategoryImportPlanner
         Note("metaTitle", Blank(c.Current.MetaTitle), Blank(c.Row.MetaTitle));
         Note("metaDescription", Blank(c.Current.MetaDescription), Blank(c.Row.MetaDescription));
         Note("sortOrder", c.Current.SortOrder, c.Row.SortOrder);
-        Note("isActive", c.Current.IsActive, c.Row.IsActive);
+        Note("isActive", c.Current.IsActive, c.IsActive);
         Note("isMenu", c.Current.IsMenu, c.Row.IsMenu);
         Note("redirectTo", Route(c.Current.RedirectToId), Route(c.RedirectId));
 
@@ -489,7 +533,12 @@ public static class CategoryImportPlanner
         ImportSnapshot Current,
         Guid? ParentId,
         Guid? RedirectId,
-        string Slug);
+        string Slug,
+        /// <summary>
+        /// The row's Active cell, after <see cref="Resolve"/> has brought it down to what the
+        /// proposed tree allows. Everything downstream reads this rather than the cell.
+        /// </summary>
+        bool IsActive);
 
     /// <summary>
     /// The tree as it would be, cheap enough to rebuild whenever a candidate is dropped. Holding
@@ -502,6 +551,7 @@ public static class CategoryImportPlanner
         private readonly Dictionary<Guid, Guid?> _parent = [];
         private readonly Dictionary<Guid, string> _slug = [];
         private readonly Dictionary<Guid, Guid?> _redirect = [];
+        private readonly Dictionary<Guid, bool> _active = [];
 
         public static World From(IReadOnlyList<ImportSnapshot> live, IReadOnlyList<Candidate> changes)
         {
@@ -512,6 +562,7 @@ public static class CategoryImportPlanner
                 world._parent[c.Id] = c.ParentId;
                 world._slug[c.Id] = c.Slug;
                 world._redirect[c.Id] = c.RedirectToId;
+                world._active[c.Id] = c.IsActive;
             }
 
             foreach (var c in changes)
@@ -519,9 +570,36 @@ public static class CategoryImportPlanner
                 world._parent[c.Row.Id] = c.ParentId;
                 world._slug[c.Row.Id] = c.Slug;
                 world._redirect[c.Row.Id] = c.RedirectId;
+
+                // What the cell says, not what Resolve settles on: a category is only brought
+                // down by an ancestor that is off in its own right, and that ancestor is an
+                // ancestor of everything below it too, so reading the cells gives the same
+                // answer without depending on the order they are resolved in.
+                world._active[c.Row.Id] = c.Row.IsActive;
             }
 
             return world;
+        }
+
+        /// <summary>
+        /// Whether anything on this category's parent chain would be switched off. Missing
+        /// entries count as on, so a parent nobody has heard of never switches a branch off.
+        /// </summary>
+        public bool AnythingInactiveAbove(Guid id)
+        {
+            var at = _parent.GetValueOrDefault(id);
+
+            for (var step = 0; at is not null && step <= MaxDepth; step++)
+            {
+                if (!_active.GetValueOrDefault(at.Value, true))
+                {
+                    return true;
+                }
+
+                at = _parent.GetValueOrDefault(at.Value);
+            }
+
+            return false;
         }
 
         public int DepthOf(Guid id)

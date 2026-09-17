@@ -321,6 +321,7 @@ public sealed class CategoryImportService(AppDbContext db, CategoryTreeService t
         CategoryError.SelfReference => "a category cannot be its own parent.",
         CategoryError.RedirectNotFound => "the category it redirects to no longer exists.",
         CategoryError.RedirectChain => "redirects are one hop only.",
+        CategoryError.ParentInactive => "a category above it is inactive, so it cannot be active.",
         _ => "the API refused it.",
     };
 }
