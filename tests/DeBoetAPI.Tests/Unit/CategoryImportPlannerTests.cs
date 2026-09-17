@@ -374,4 +374,97 @@ public class CategoryImportPlannerTests
         Assert.Empty(plan.Rows);
         Assert.Empty(plan.Steps);
     }
+
+    // ---- nothing active below something inactive --------------------------------------------
+
+    [Fact]
+    public void SwitchingASectionOffBringsTheRowsBeneathItDown()
+    {
+        // The ordinary shape of the edit: one cell changed on the parent, its children left
+        // exactly as exported. They are carried down rather than refused.
+        var plan = CategoryImportPlanner.Plan(
+            [
+                Row(Live(Christmas), isActive: false),
+                Row(Live(Lighting), number: 3),
+                Row(Live(Indoor), number: 4),
+                Row(Live(Halloween), number: 5),
+            ],
+            Forest());
+
+        Assert.Equal(3, plan.Changed);
+        Assert.Equal(1, plan.Unchanged);
+        Assert.Equal(0, plan.Refused);
+
+        Assert.All(
+            plan.Steps.Where(s => s.Id != Halloween),
+            s => Assert.False(s.IsActive));
+
+        // Said out loud in the preview, so nobody presses Apply expecting only one category to
+        // change.
+        Assert.Contains("isActive: True -> False", plan.Rows[1].Changes);
+    }
+
+    [Fact]
+    public void ASectionThatStaysOnLeavesItsChildrenAlone()
+    {
+        var plan = CategoryImportPlanner.Plan(
+            [Row(Live(Christmas), name: "Kerst"), Row(Live(Lighting), number: 3)],
+            Forest());
+
+        Assert.Equal(1, plan.Changed);
+        Assert.Equal(1, plan.Unchanged);
+        Assert.True(plan.Steps.Single().IsActive);
+    }
+
+    [Fact]
+    public void SwitchingOneOnUnderneathAnInactiveSectionIsRefused()
+    {
+        // Christmas is off and stays off, so asking for Lighting back is a request the tree
+        // cannot honour — and the row says why rather than quietly doing nothing.
+        var live = Forest()
+            .Select(c => c.Id == Christmas || c.Id == Lighting ? c with { IsActive = false } : c)
+            .ToList();
+
+        var plan = CategoryImportPlanner.Plan(
+            [Row(live.First(c => c.Id == Lighting), isActive: true)], live);
+
+        Assert.Equal(ImportRowState.Refused, Only(plan).State);
+        Assert.Contains("cannot be switched on", Only(plan).Reason!, StringComparison.Ordinal);
+        Assert.Empty(plan.Steps);
+    }
+
+    [Fact]
+    public void SwitchingOneOnTogetherWithTheSectionAboveItIsAllowed()
+    {
+        var live = Forest()
+            .Select(c => c.Id == Christmas || c.Id == Lighting ? c with { IsActive = false } : c)
+            .ToList();
+
+        var plan = CategoryImportPlanner.Plan(
+            [
+                Row(live.First(c => c.Id == Christmas), isActive: true),
+                Row(live.First(c => c.Id == Lighting), number: 3, isActive: true),
+            ],
+            live);
+
+        Assert.Equal(2, plan.Changed);
+        Assert.Equal(0, plan.Refused);
+        Assert.All(plan.Steps, s => Assert.True(s.IsActive));
+    }
+
+    [Fact]
+    public void MovingUnderAnInactiveSectionBringsTheRowDownWithIt()
+    {
+        var live = Forest()
+            .Select(c => c.Id == Halloween ? c with { IsActive = false } : c)
+            .ToList();
+
+        var plan = CategoryImportPlanner.Plan(
+            [Row(live.First(c => c.Id == Trees), parentRoute: "halloween")], live);
+
+        var step = plan.Steps.Single();
+        Assert.True(step.Reparents);
+        Assert.False(step.IsActive);
+        Assert.Contains("isActive: True -> False", Only(plan).Changes);
+    }
 }

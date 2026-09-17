@@ -105,7 +105,7 @@
   "details.redirectsTo": "Verwijst door naar",
   "details.noRedirect": "Niets; deze categorie wordt op haar eigen adres getoond.",
   "categories.fieldActive": "Actief",
-  "categories.fieldActiveHelp": "Actief in overzichten",
+  "categories.fieldActiveHelp": "Uit betekent verborgen in overzichten, samen met alles eronder",
   "categories.fieldMenu": "In menu",
   "categories.fieldMenuHelp": "Verschijnt in de navigatie",
   "categories.savedMessage": "Categorie opgeslagen.",

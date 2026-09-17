@@ -105,7 +105,7 @@
   "details.redirectsTo": "Redirects to",
   "details.noRedirect": "Nothing — this category is shown on its own address.",
   "categories.fieldActive": "Active",
-  "categories.fieldActiveHelp": "Hidden from listings when off",
+  "categories.fieldActiveHelp": "Hidden from listings when off, together with everything under it",
   "categories.fieldMenu": "In menu",
   "categories.fieldMenuHelp": "Appears in navigation",
   "categories.savedMessage": "Category saved.",
