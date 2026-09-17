@@ -191,7 +191,7 @@ public class CategoryTreeTests(PostgresFixture postgres) : CategoryTestBase(post
         // pass even if the rename had silently failed.
         Assert.Equal(expectedAfterRename, iceDetail.Breadcrumb.Select(c => c.Name).ToArray());
 
-        Assert.Equal($"{christmas.Slug}-festive_lighting-{ice.Slug}", iceDetail.Category.PathSlug);
+        Assert.Equal($"{christmas.Slug}-festive-lighting-{ice.Slug}", iceDetail.Category.PathSlug);
     }
 
     [Fact]
