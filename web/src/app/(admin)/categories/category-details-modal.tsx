@@ -17,9 +17,13 @@ interface Props {
   categoryName: string;
   siteUrl: string;
   onClose: () => void;
+  /** Swaps this dialog for the edit one. Editing happens over the tree, not on a page. */
+  onEdit: () => void;
 }
 
-export function CategoryDetailsModal({ categoryId, categoryName, siteUrl, onClose }: Props) {
+export function CategoryDetailsModal({
+  categoryId, categoryName, siteUrl, onClose, onEdit,
+}: Props) {
   const t = useT();
   type Loaded = { status: 'error'; message: string } | { status: 'ready'; details: CategoryDetails };
   const [loaded, setLoaded] = useState<{ id: string; result: Loaded } | null>(null);
@@ -61,17 +65,20 @@ export function CategoryDetailsModal({ categoryId, categoryName, siteUrl, onClos
 
       {state.status === 'error' && <Alert color="red" title={t('details.loadFailed')}>{state.message}</Alert>}
 
-      {state.status === 'ready' && <Details details={state.details} siteUrl={siteUrl} onClose={onClose} />}
+      {state.status === 'ready' && (
+        <Details details={state.details} siteUrl={siteUrl} onClose={onClose} onEdit={onEdit} />
+      )}
     </Modal>
   );
 }
 
 function Details({
-  details, siteUrl, onClose,
+  details, siteUrl, onClose, onEdit,
 }: {
   details: CategoryDetails;
   siteUrl: string;
   onClose: () => void;
+  onEdit: () => void;
 }) {
   const t = useT();
   const url = `${siteUrl}/${details.pathSlug}`;
@@ -207,12 +214,8 @@ function Details({
         >
           {t('details.fullHistory')}
         </Button>
-        <Button
-          component={Link}
-          href={`/categories/${details.id}/edit`}
-          leftSection={<IconPencil size={16} />}
-          onClick={onClose}
-        >
+        {/* No href: the tree closes this dialog and opens the edit one in its place. */}
+        <Button leftSection={<IconPencil size={16} />} onClick={onEdit}>
           {t('common.edit')}
         </Button>
       </Group>

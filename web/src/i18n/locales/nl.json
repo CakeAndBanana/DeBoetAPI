@@ -106,6 +106,7 @@
   "details.noRedirect": "Niets; deze categorie wordt op haar eigen adres getoond.",
   "categories.fieldActive": "Actief",
   "categories.fieldActiveHelp": "Uit betekent verborgen in overzichten, samen met alles eronder",
+  "categories.fieldActiveBlocked": "Uit zolang \"{name}\" inactief is — alles eronder ook",
   "categories.fieldMenu": "In menu",
   "categories.fieldMenuHelp": "Verschijnt in de navigatie",
   "categories.savedMessage": "Categorie opgeslagen.",

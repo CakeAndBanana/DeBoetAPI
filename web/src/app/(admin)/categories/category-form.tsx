@@ -7,7 +7,7 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import type { CategoryOption } from '@/lib/categories';
+import { inactiveAbove, type CategoryOption } from '@/lib/categories';
 import { CategoryPicker } from '@/components/category-picker';
 import { useT } from '@/i18n/client';
 import { createCategory, updateCategory, type CategoryInput } from './actions';
@@ -41,11 +41,29 @@ export function CategoryForm({ options, id, initial, onClose }: Props) {
       // Not shown, but still submitted: the API's SortOrder has no default, so leaving it
       // out of the payload would silently reset an existing category's ordering to 0.
       sortOrder: initial?.sortOrder ?? 0,
-      isActive: initial?.isActive ?? true,
+      // A new category under a section that is switched off starts switched off as well. The
+      // API refuses the other combination, and arriving at a form that cannot be saved until
+      // you find the right switch is not what "add one here" should mean.
+      isActive: initial?.isActive ?? inactiveAbove(options, initial?.parentId) === null,
       isMenu: initial?.isMenu ?? true,
     },
     validate: { name: (v) => (v.trim() ? null : t('common.required')) },
   });
+
+  /**
+   * The parent this category hangs from: the one being picked on a new category, or the one it
+   * already sits under when editing, since the edit form does not offer to change it.
+   */
+  const parentId = id
+    ? options.find((o) => o.value === id)?.parentId ?? null
+    : form.values.parentId ?? null;
+
+  /**
+   * The switched-off category above this one, if there is one. Naming it is the point: it can be
+   * several levels up, and "why will this not switch on" needs an answer in the form rather than
+   * a refusal from the API after saving.
+   */
+  const switchedOffAbove = inactiveAbove(options, parentId);
 
   function leave() {
     if (onClose) onClose();
@@ -57,7 +75,13 @@ export function CategoryForm({ options, id, initial, onClose }: Props) {
       // The slug travels with the payload now. On create the field is not rendered, so it
       // is blank and the API derives one from the name; on edit it carries whatever is in the
       // box, which means renaming no longer silently rewrites an established route.
-      const result = id ? await updateCategory(id, values) : await createCategory(values);
+
+      // The active flag is forced rather than trusted: the switch below is disabled in this
+      // state, and a value left over from before the parent was picked would only earn a
+      // refusal from the API.
+      const payload = switchedOffAbove ? { ...values, isActive: false } : values;
+
+      const result = id ? await updateCategory(id, payload) : await createCategory(payload);
 
       if (!result.ok) {
         notifications.show({ color: 'red', title: t('common.refused'), message: result.message! });
@@ -97,6 +121,13 @@ export function CategoryForm({ options, id, initial, onClose }: Props) {
             description={t('categories.fieldParentHelp')}
             options={options}
             {...form.getInputProps('parentId')}
+            onChange={(value) => {
+              form.setFieldValue('parentId', value);
+
+              // Picking a section that is switched off switches this one off with it, rather
+              // than leaving a switch on that the save would refuse.
+              if (inactiveAbove(options, value)) form.setFieldValue('isActive', false);
+            }}
           />
         )}
 
@@ -129,8 +160,12 @@ export function CategoryForm({ options, id, initial, onClose }: Props) {
         <Group>
           <Switch
             label={t('categories.fieldActive')}
-            description={t('categories.fieldActiveHelp')}
+            description={switchedOffAbove
+              ? t('categories.fieldActiveBlocked', { name: switchedOffAbove.name })
+              : t('categories.fieldActiveHelp')}
+            disabled={!!switchedOffAbove}
             {...form.getInputProps('isActive', { type: 'checkbox' })}
+            checked={switchedOffAbove ? false : form.values.isActive}
           />
           <Switch
             label={t('categories.fieldMenu')}
